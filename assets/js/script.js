@@ -2599,16 +2599,26 @@ function renderProfile(name){
         '<div class="flex gap-3"><div class="w-2 h-2 rounded-full bg-sky-500 mt-1.5 flex-shrink-0"></div><div><div class="text-[12.5px] text-slate-800"><span class="font-medium">' + esc(h.status) + '</span>' + (h.note ? ' · ' + esc(h.note) : '') + '</div>'
         + '<div class="text-[11px] text-slate-400">' + formatDate(h.date) + '</div></div></div>').join('') + '</div>' : '<div class="text-[12.5px] text-slate-500">No activity yet.</div>');
 
+    const jobApps = Object.entries(getJSON('ic_job_apps', {})).flatMap(([key, apps]) => apps.filter(a => !a.internship && (a.name === p.name || key === (p.email || '').toLowerCase() || key === p.name.toLowerCase())).map(a => Object.assign({key}, a)));
+    const jobsCard = jobApps.length ? profileCard('Job applications', '<div class="text-[11.5px] text-slate-400 mb-2">Set the status for partner companies that do not use the portal.</div><div class="divide-y divide-slate-100">' + jobApps.map(a =>
+        '<div class="flex items-center justify-between gap-3 py-2"><div><div class="text-[12.5px] font-medium text-slate-800">' + esc(a.title) + '</div><div class="text-[11px] text-slate-400">' + esc(a.company) + ' · applied ' + formatDate(a.date) + (a.statusBy ? ' · updated by ' + esc(a.statusBy) : '') + '</div></div>'
+        + jobStatusSelect(a.key, a.job, a.status && a.status !== 'Submitted' ? a.status : 'Pending') + '</div>').join('') + '</div>') : '';
     const deletion = getDeletionRequests().find(r => r.name === p.name && r.status === 'processed');
     const deletedNote = deletion ? '<div class="bg-slate-50 border border-slate-200 rounded-xl px-5 py-3 text-[12.5px] text-slate-600"><i class="fa-solid fa-user-slash mr-1.5 text-slate-400"></i>Profile, resume and job-matching data were deleted on ' + formatDate(deletion.processedAt) + ' at the alumni\'s request. This OJT record is read-only and kept until ' + retainUntil(alumniCompletedAt(p)) + '.</div>' : '';
     box.innerHTML = header + deletedNote + progress + attendanceCard(p, deployed)
       + '<div class="grid lg:grid-cols-2 gap-4"><div class="space-y-4">' + hours + scheduleCard(p, deployed) + profileCard('Daily logs and reports', logBody) + '</div>'
-      + '<div class="space-y-4">' + requirements + timeline + '</div></div>';
+      + '<div class="space-y-4">' + requirements + timeline + jobsCard + '</div></div>';
 }
 
 if(document.getElementById('internProfile')){
     const profileName = new URLSearchParams(window.location.search).get('name') || '';
     renderProfile(profileName);
+    document.getElementById('internProfile').addEventListener('change', (e) => {
+        const s = e.target.closest('select[data-jobstatus]'); if(!s) return;
+        setJobAppStatus(s.dataset.jobstatus, s.dataset.job, s.value, 'Coordinator');
+        showToast('Application status set to ' + s.value + '.', 'success');
+        renderProfile(profileName);
+    });
     if(window.location.hash === '#attendance') document.getElementById('attendance')?.scrollIntoView();
     on('attPhotoClose', 'click', () => closeModal(document.getElementById('attPhotoModal')));
     on('profileBackBtn', 'click', () => { if(history.length > 1) history.back(); else goTo('attendance'); });
@@ -3785,7 +3795,7 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     if(!tbody) return;
     const apps = myJobApps(me).slice().reverse();
     tbody.innerHTML = apps.length ? apps.map(a => { const st = jobAppStatus(a, me);
-      const badge = st === 'Submitted' ? '<span class="text-[11px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Submitted</span>' : st === 'Cancelled' ? '<span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">Cancelled</span>' : placementBadge(st);
+      const badge = !a.internship ? jobBadge(st) : st === 'Cancelled' ? '<span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">Cancelled</span>' : placementBadge(st);
       return '<tr><td class="px-5 py-3 text-slate-700">' + esc(a.title) + '</td><td class="px-5 py-3 text-slate-600">' + esc(a.company) + '</td><td class="px-5 py-3 text-slate-500">' + formatDate(a.date) + '</td><td class="px-5 py-3">' + badge + '</td></tr>'; }).join('')
       : '<tr><td colspan="4" class="px-5 py-6 text-center text-[12.5px] text-slate-400">No applications yet. Apply to a job above.</td></tr>';
   }
@@ -3918,7 +3928,7 @@ const PROGRAM_COURSE = {'BS Computer Science': 'BSCS', 'BS Hospitality Managemen
 const JM_DEFAULT_SKILLS = ['Communication', 'Python', 'SQL', 'Canva'];
 const jmKey = (me) => ((me || {}).email || (me || {}).name || '').toLowerCase();
 const isInternshipJob = (job) => /^Internship/.test(job.type);
-const JOB_OPEN = ['Submitted', 'Applied', 'Endorsed', 'Accepted'];
+const JOB_OPEN = ['Pending', 'Applied', 'Endorsed', 'Accepted'];
 function jmSkills(me){ const r = getJSON('ic_resume', {})[jmKey(me)]; return (r && r.savedAt ? (r.soft || []).concat(r.hard || []) : JM_DEFAULT_SKILLS).map(x => x.toLowerCase()); }
 // 40% course fit + 60% share of the job's skills found in the student's resume
 function jobMatch(job, me){
@@ -3927,8 +3937,23 @@ function jobMatch(job, me){
     return {score: Math.round((courseOk ? 40 : 0) + 60 * skills.filter(x => x[1]).length / (skills.length || 1)), skills, courseOk};
 }
 function myJobApps(me){ return getJSON(JOB_APPS_KEY, {})[jmKey(me)] || []; }
+function jobStatusSelect(key, job, cur){
+    return '<select data-jobstatus="' + esc(key) + '" data-job="' + esc(job) + '" class="border border-slate-300 rounded-md px-2 py-1 text-[11.5px] bg-white focus:outline-none focus:ring-2 focus:ring-sky-400">'
+      + ['Pending', 'Accepted', 'Not Selected'].map(s => '<option' + (s === cur ? ' selected' : '') + '>' + s + '</option>').join('') + '</select>';
+}
+function jobBadge(st){
+    return '<span class="text-[11px] font-semibold border px-2 py-0.5 rounded-full whitespace-nowrap ' + ({Accepted: 'text-emerald-700 bg-emerald-50 border-emerald-200', 'Not Selected': 'text-rose-700 bg-rose-50 border-rose-200'}[st] || 'text-amber-700 bg-amber-50 border-amber-200') + '">' + st + '</span>';
+}
+// Job applications (alumni): the partner sets the status, or the coordinator on its behalf when the partner does not use the portal
+function setJobAppStatus(key, jobId, status, by){
+    const all = getJSON(JOB_APPS_KEY, {}), a = (all[key] || []).find(x => x.job === jobId && !x.internship);
+    if(!a) return;
+    Object.assign(a, {status, statusAt: todayISO(), statusBy: by});
+    localStorage.setItem(JOB_APPS_KEY, JSON.stringify(all));
+    logAudit('Set the application of ' + (a.name || key) + ' for ' + a.title + ' to ' + status, 'Success');
+}
 function jobAppStatus(a, me){
-    if(!a.internship) return 'Submitted';
+    if(!a.internship) return a.status && a.status !== 'Submitted' ? a.status : 'Pending';
     const p = placementList().find(x => x.name === me.name || (me.email && x.email === me.email));
     return p && p.company === a.company && p.status !== 'Not placed' ? p.status : 'Cancelled';
 }
@@ -4510,7 +4535,7 @@ if(document.body.dataset.ppage) (function(){
                       + '<td class="py-2.5 pr-3"><div class="font-medium text-slate-900">' + esc(a.who.name) + '</div><div class="text-[10.5px] text-slate-400">' + esc(a.who.program) + ' · applied ' + formatDate(a.app.date) + '</div></td>'
                       + '<td class="py-2.5 pr-3 w-36"><div class="font-bold text-indigo-700">' + a.match.score + '%</div><div class="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-indigo-500" style="width:' + a.match.score + '%"></div></div></td>'
                       + '<td class="py-2.5 pr-3"><div class="flex flex-wrap gap-1">' + a.match.skills.map(([n, ok]) => ok ? '<span class="tag-chip matched"><i class="fa-solid fa-check"></i>' + esc(n) + '</span>' : '<span class="tag-chip gap">' + esc(n) + ' <span class="chip-note">gap</span></span>').join('') + (a.match.courseOk ? '' : '<span class="text-[10.5px] text-amber-600">different course</span>') + '</div></td>'
-                      + '<td class="py-2.5 pr-3">' + (internship ? placementBadge(a.status) : '<span class="text-[11px] text-slate-500">Submitted</span>') + '</td>'
+                      + '<td class="py-2.5 pr-3">' + (internship ? placementBadge(a.status) : jobStatusSelect(a.key, j.id, a.status)) + '</td>'
                       + '<td class="py-2.5 text-right"><button data-resume="' + esc(a.key) + '" data-name="' + esc(a.who.name) + '" data-verified="' + (internship ? '0' : '1') + '" class="' + btn + 'text-sky-600 bg-sky-50 hover:bg-sky-100 whitespace-nowrap">View resume</button></td></tr>').join('') + '</tbody></table></div>'
                     : '<div class="text-[12.5px] text-slate-400 border border-dashed border-slate-200 rounded-md py-6 text-center">No applicants yet. Students see this posting in their Job Matching.</div>') + '</div>'; };
             document.getElementById('pPostings').innerHTML = '<div class="flex flex-wrap items-start justify-between gap-3"><div><h1 class="text-xl font-bold text-slate-900">Job Postings</h1><p class="text-sm text-slate-500 mt-0.5">Internships and jobs from ' + esc(company) + '. Students see open postings in Job Matching.</p></div>'
@@ -4526,6 +4551,12 @@ if(document.body.dataset.ppage) (function(){
                 : '<div class="' + card + ' p-8 text-center text-[12.5px] text-slate-400">No postings yet. Post an internship or a job to start receiving applicants.</div>');
             if(sel && params.get('job')) document.querySelector('.ring-2')?.scrollIntoView({block: 'start'});
         };
+        document.addEventListener('change', (e) => {
+            const s = e.target.closest('select[data-jobstatus]'); if(!s) return;
+            setJobAppStatus(s.dataset.jobstatus, s.dataset.job, s.value, company);
+            showToast('Application status set to ' + s.value + '.', 'success');
+            render();
+        });
         const openForm = (id) => {
             const j = id ? allPostings()[id] : {type: 'Internship · Onsite', course: PROGRAM_COURSE[me.program] || 'BSCS', requirements: [], skills: []};
             const [kind, arr] = (j.type || '').split(' · ');
