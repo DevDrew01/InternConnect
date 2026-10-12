@@ -12,7 +12,10 @@ const pages = {
     partners: '../coordinator/directory.html',
     audit: '../coordinator/audit.html',
     placements: '../coordinator/placements.html',
-    intern: '../coordinator/intern.html'
+    intern: '../coordinator/intern.html',
+    poverview: '../partner/overview.html',   // partner company portal
+    pvault: '../partner/vault.html',
+    ppostings: '../partner/postings.html'
 };
 
 // Student / Alumni pages live in pages/student/ (all paths are relative to the current page, which is always pages/<section>/).
@@ -34,7 +37,7 @@ const registerPages = {
 };
 
 // Where each role lands after login (key from "pages" above, null = dashboard not built yet)
-const dashboards = { coordinator: 'overview', student: 'overview', partnercompany: null };
+const dashboards = { coordinator: 'overview', student: 'overview', partnercompany: 'poverview' };
 const roleLabels = { student: 'Student', coordinator: 'Coordinator', partnercompany: 'Industry Partner' };
 
 // Which role is this page for? (register pages have data-role on <body>, login uses the role switcher)
@@ -55,6 +58,99 @@ function pageFor(key){
 }
 
 // Toast Notification
+// Styled replacement for window.confirm(). Resolves true when the user confirms.
+function askConfirm(message, opts){
+    opts = opts || {};
+    const msg = String(message || '');
+    const danger = opts.danger != null ? opts.danger : /^(Delete|Remove|Reject|Archive|Close|Decline|Cancel|Log out|Request deletion|Mark .* withdrawn|Approve the request .* delete|.* did not accept)/.test(msg);
+    const word = (msg.match(/^(Delete|Remove|Reject|Archive|Close|Decline|Log out|Apply|Approve)/) || [])[1];
+    const okLabel = opts.ok || (/^Cancel /.test(msg) ? 'Yes, cancel' : /^Request deletion/.test(msg) ? 'Request deletion' : /^There is no signed/.test(msg) ? 'Open folder' : word || 'Confirm');
+    return new Promise(resolve => {
+        const wrap = document.createElement('div');
+        wrap.className = 'fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-4';
+        wrap.dataset.ask = '1';
+        wrap.innerHTML = '<div role="dialog" aria-modal="true" class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">'
+            + '<div class="flex items-start gap-4"><div class="w-10 h-10 shrink-0 rounded-full flex items-center justify-center ' + (danger ? 'bg-red-50 text-red-600' : 'bg-sky-50 text-sky-600') + '"><i class="fa-solid ' + (danger ? 'fa-triangle-exclamation' : 'fa-circle-question') + '"></i></div>'
+            + '<div class="min-w-0"><h3 class="text-[15px] font-bold text-slate-900"></h3><p class="mt-1.5 text-[13px] text-slate-600 whitespace-pre-line break-words"></p></div></div>'
+            + '<div class="mt-6 flex justify-end gap-2"><button data-c="no" class="text-[12.5px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-md transition">Cancel</button>'
+            + '<button data-c="yes" class="text-[12.5px] font-semibold text-white px-4 py-2 rounded-md transition ' + (danger ? 'bg-red-600 hover:bg-red-700' : 'bg-sky-600 hover:bg-sky-700') + '"></button></div></div>';
+        wrap.querySelector('h3').textContent = opts.title || 'Are you sure?';
+        wrap.querySelector('p').textContent = msg;
+        wrap.querySelector('[data-c="yes"]').textContent = okLabel;
+        const done = (v) => { document.removeEventListener('keydown', key, true); wrap.remove(); resolve(v); };
+        const key = (e) => { if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); done(false); } else if(e.key === 'Enter'){ e.preventDefault(); done(true); } };
+        wrap.addEventListener('click', (e) => { e.stopPropagation(); const b = e.target.closest('[data-c]'); if(b) done(b.dataset.c === 'yes'); else if(e.target === wrap) done(false); });
+        document.addEventListener('keydown', key, true);
+        document.body.appendChild(wrap);
+        wrap.querySelector('[data-c="yes"]').focus();
+    });
+}
+
+// Styled replacement for window.prompt(). Resolves the typed text, or null when cancelled.
+function askInput(message, value){
+    return new Promise(resolve => {
+        const wrap = document.createElement('div');
+        wrap.className = 'fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-4';
+        wrap.dataset.ask = '1';
+        wrap.innerHTML = '<div role="dialog" aria-modal="true" class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">'
+            + '<p class="text-[13.5px] font-semibold text-slate-800 whitespace-pre-line break-words"></p>'
+            + '<textarea rows="3" class="mt-3 w-full text-[13px] border border-slate-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500"></textarea>'
+            + '<div class="mt-4 flex justify-end gap-2"><button data-c="no" class="text-[12.5px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-md transition">Cancel</button>'
+            + '<button data-c="yes" class="text-[12.5px] font-semibold text-white bg-sky-600 hover:bg-sky-700 px-4 py-2 rounded-md transition">OK</button></div></div>';
+        wrap.querySelector('p').textContent = String(message || '');
+        const box = wrap.querySelector('textarea');
+        box.value = value || '';
+        const done = (v) => { document.removeEventListener('keydown', key, true); wrap.remove(); resolve(v); };
+        const key = (e) => { if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); done(null); } else if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); done(box.value); } };
+        wrap.addEventListener('click', (e) => { e.stopPropagation(); const b = e.target.closest('[data-c]'); if(b) done(b.dataset.c === 'yes' ? box.value : null); else if(e.target === wrap) done(null); });
+        document.addEventListener('keydown', key, true);
+        document.body.appendChild(wrap);
+        box.focus(); box.select();
+    });
+}
+
+// "Discard changes?" guard: pop up forms and pages ask before throwing away what the user typed
+const DISCARD_SKIP = /search|filter|sort/i;
+const MODAL_SAVE = /^(save|submit|upload|post|publish|create|update|apply|record|confirm|done)\b/i;
+const PAGE_SAVE = /^(save|submit|resubmit|upload|post|publish|create|update|apply|record|confirm|approve|reject|request|send|grade|mark)\b/i;
+let pageDirty = false, discardBypass = false;
+function discardModalOf(el){ const m = el && el.closest('[id$="Modal"], [id$="modal"], .fixed.inset-0'); return m && !m.matches('[data-ask]') ? m : null; }
+function discardAsk(){ return askConfirm('You have unsaved changes. If you leave now, they will be lost.', {title: 'Discard changes?', ok: 'Discard', danger: true}); }
+function isDismissBtn(b, label){
+    if(b.id === 'closeBatchBtn') return false;
+    return /^(cancel|close|discard|back)$/i.test(label) || (!label && !!b.querySelector('.fa-xmark')) || /^(cancel|close)|(cancel|close)(btn)?$/i.test(b.id)
+        || [...b.attributes].some(a => a.name.startsWith('data-') && (/close|cancel/i.test(a.name) || /^(close|cancel)$/i.test(a.value)));
+}
+['input', 'change'].forEach(t => document.addEventListener(t, (e) => {
+    const f = e.target;
+    if(!e.isTrusted || !f.matches || !f.matches('input, textarea, select') || f.closest('[data-ask]')) return;
+    if(['button', 'submit', 'hidden'].includes(f.type) || DISCARD_SKIP.test([f.id, f.name, f.className, f.placeholder].join(' '))) return;
+    const m = discardModalOf(f);
+    if(m) m.dataset.dirty = '1';
+    else if(f.matches('textarea, input:not([type]), input[type=text], input[type=email], input[type=number], input[type=url], input[type=tel]')) pageDirty = true;
+}, true));
+new MutationObserver(list => list.forEach(r => { const t = r.target; if(t.dataset && t.dataset.dirty && t.classList.contains('hidden')) delete t.dataset.dirty; }))
+    .observe(document.documentElement, {subtree: true, attributes: true, attributeFilter: ['class']});
+document.addEventListener('click', (e) => {
+    if(discardBypass || !e.target.closest || e.target.closest('[data-ask]')) return;
+    const b = e.target.closest('button, a');
+    if(!b) return;
+    const label = (b.textContent || '').trim(), m = discardModalOf(b);
+    const proceed = (clean) => { e.preventDefault(); e.stopImmediatePropagation(); discardAsk().then(ok => { if(!ok) return; clean(); discardBypass = true; try { b.click(); } finally { discardBypass = false; } }); };
+    if(m){
+        if(m.dataset.dirty && isDismissBtn(b, label)) proceed(() => delete m.dataset.dirty);
+        else if(MODAL_SAVE.test(label)) setTimeout(() => { delete m.dataset.dirty; }, 0);
+        return;
+    }
+    if(PAGE_SAVE.test(label)){ setTimeout(() => { pageDirty = false; }, 0); return; }
+    const href = b.tagName === 'A' ? (b.getAttribute('href') || '') : '';
+    const leaving = b.matches('.nav-link, #logoutBtn') || (href && !href.startsWith('#') && !href.startsWith('javascript') && b.target !== '_blank');
+    if(pageDirty && leaving) proceed(() => { pageDirty = false; });
+}, true);
+window.addEventListener('beforeunload', (e) => {
+    if(pageDirty || [...document.querySelectorAll('[data-dirty]')].some(m => !m.classList.contains('hidden'))){ e.preventDefault(); e.returnValue = ''; }
+});
+
 function showToast(message, type){
     type = type || 'info';
     const el = document.createElement('div');
@@ -124,8 +220,9 @@ function closeSidebar(){
 if(sidebar && !isStudentPortal){
     // Nav Links (go to the matching page, logout goes back to login)
     document.querySelectorAll('.nav-link').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             if(btn.dataset.tab === 'logout'){
+                if(!await askConfirm('Log out of InternConnect?')) return;
                 localStorage.removeItem('ic_session');   // back to the default theme
                 goTo('login', 'You have been logged out.', 'info');
             } else {
@@ -308,6 +405,7 @@ on('loginSubmitBtn', 'click', () => {
     }
     const demo = {role, email: email || 'demo@sjc.edu.ph', name: 'Demo User', program: 'BS Computer Science', theme: 'sky', school: 'PHINMA SJCDC', classCode: 'PHINMA-CS-2026'};
     if(role === 'student') Object.assign(demo, {name: 'Alex V. Santos', status: 'intern', hours: 320, ojtHours: 320});
+    if(role === 'partnercompany') Object.assign(demo, {name: 'Sarah Geronimo', company: 'Brightpath Software'});
     startSession(user || demo);
 });
 
@@ -531,15 +629,15 @@ function programShort(program){
 
 if(sidebar){
     const me = getJSON('ic_session', null);
-    if(!me || me.role !== (isStudentPortal ? 'student' : 'coordinator')){
+    if(!me || me.role !== (isStudentPortal ? 'student' : (document.body.dataset.role || 'coordinator'))){
         if(REQUIRE_LOGIN) goTo('login', 'Please sign in first.', 'warn');
-    } else if(me.role === 'coordinator'){
+    } else if(me.role === 'coordinator' || me.role === 'partnercompany'){
         const parts = (me.name || '').trim().split(/\s+/);
         const initials = ((parts[0] || '')[0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : '');
         const values = {
             name: me.name,
-            role: me.program ? programShort(me.program) + ' OJT Coordinator' : '',
-            school: me.school,
+            role: me.role === 'partnercompany' ? 'Supervisor · ' + (me.company || 'Industry Partner') : me.program ? programShort(me.program) + ' OJT Coordinator' : '',
+            school: me.role === 'partnercompany' ? me.company : me.school,
             classcode: activeClassCode() || me.classCode
         };
         Object.keys(values).forEach(key => {
@@ -632,7 +730,7 @@ function renderJoinRequests(){
 if(document.getElementById('wr-students')) renderJoinRequests();
 
 // Approve and Reject (approved students become Interns, rejected sign ups are deleted). Both are written to the audit trail.
-document.addEventListener('click', (e) => {
+document.addEventListener('click', async (e) => {
     const approve = e.target.closest('.join-approve');
     const reject = e.target.closest('.join-reject');
     if(!approve && !reject) return;
@@ -640,16 +738,23 @@ document.addEventListener('click', (e) => {
     const name = card.dataset.name;   // not the first .font-semibold: that is the avatar initials
     const email = card.dataset.email, role = card.dataset.userrole, sampleId = card.dataset.sample;
     const isPartner = role === 'partnercompany';
-    if(reject && !confirm('Reject ' + name + '?\n\nTheir sign-up will be removed and they will need to register again.')) return;
+    if(reject && !await askConfirm('Reject ' + name + '? Their sign up will be removed and they will need to register again.', {title: 'Reject request?', ok: 'Reject', danger: true})) return;
     if(email){
-        if(approve) updateUser(email, role, {status: role === 'student' ? 'intern' : 'active', approvedAt: todayISO()});
+        if(approve){
+            const patch = {status: role === 'student' ? 'intern' : 'active', approvedAt: todayISO()};
+            if(isPartner){
+                const u = getUsers().find(x => x.email === email && x.role === role) || {}, typed = (u.company || '').trim();
+                patch.company = partnerCompanies().find(n => n.toLowerCase() === typed.toLowerCase()) || typed;
+            }
+            updateUser(email, role, patch);
+        }
         else saveUsers(getUsers().filter(u => !(u.email === email && u.role === role)));
     } else if(sampleId){
         localStorage.setItem(SAMPLE_JOINS_KEY, JSON.stringify(getJSON(SAMPLE_JOINS_KEY, []).concat(sampleId)));
     }
     logAudit((approve ? 'Approved ' : 'Rejected ') + name + (isPartner ? "'s partner link request" : "'s request to join") + ' (' + activeClassCode() + ')', approve ? 'Success' : 'Deleted');
     renderJoinRequests();
-    if(approve) showToast(name + (isPartner ? ' approved as a partner company.' : ' approved and added to the class.'), 'success');
+    if(approve) showToast(name + (isPartner ? ' approved and added to the Partner & MOA Directory.' : ' approved and added to the class.'), 'success');
     else showToast(name + "'s request was rejected.", 'warn');
 });
 
@@ -804,7 +909,7 @@ on('postTaskBtn', 'click', () => {
 });
 
 // Task card menu: Edit, Duplicate, Close / Reopen, Archive / Restore, Delete
-function taskAction(id, act){
+async function taskAction(id, act){
     const t = findTask(id);
     if(!t) return;
     const name = '"' + esc(t.title) + '"';
@@ -815,16 +920,17 @@ function taskAction(id, act){
         saveAllTasks(list);
         showToast('Copy created. Edit it to change the title or due date.', 'success');
     }
+    if(act === 'close' && !await askConfirm('Close submissions for ' + name + '? Students can no longer submit.')) return;
     if(act === 'close'){ updateTask(id, {status: 'closed'}); showToast('Submissions closed for ' + name + '. You can still review and grade.', 'info'); }
     if(act === 'reopen'){ updateTask(id, {status: 'open'}); showToast('Submissions reopened for ' + name + '.', 'success'); }
     if(act === 'archive'){
-        if(!confirm('Archive "' + t.title + '"? Students will no longer see it. Submissions and grades are kept.')) return;
+        if(!await askConfirm('Archive "' + t.title + '"? Students will no longer see it. Submissions and grades are kept.')) return;
         updateTask(id, {status: 'archived'});
         showToast(name + ' archived. You can restore it from the Archived tab.', 'info');
     }
     if(act === 'restore'){ updateTask(id, {status: 'closed'}); taskFilter = 'active'; showToast(name + ' restored with submissions closed. Reopen it if students still need to submit.', 'success'); }
     if(act === 'delete'){
-        if(!confirm('Delete "' + t.title + '"? This cannot be undone.')) return;
+        if(!await askConfirm('Delete "' + t.title + '"? This cannot be undone.')) return;
         saveAllTasks(getAllTasks().filter(x => x.id !== id));
         showToast(name + ' deleted.', 'warn');
     }
@@ -899,13 +1005,13 @@ const taskData = {
       count: '62 / 85 Turned In',
       submissions: [
         { name: 'Aiyu T.', meta: 'Sept 15, 2026 · 8 hours claimed · Brightpath Software', status: 'Pending Review', statusClass: 'text-amber-600 bg-amber-50 border-amber-200',
-          raw: "Tinulungan ko si Sir mag-fix ng database migration script.\n\n\t- Tinest ang user API endpoints\n\t- Nag-ayos ng minor bugs sa login flow\n\t- Nag-attend ng stand-up meeting kasama ang team",
+          raw: "Assisted my supervisor in fixing the database migration script.\n\n\t- Tested the user API endpoints\n\t- Fixed minor bugs in the login flow\n\t- Attended the daily stand-up meeting with the team",
           bullet: 'Assisted in database migration and performed API unit testing under supervisor guidance.' },
         { name: 'Leo A.', meta: 'Sept 15, 2026 · 8 hours claimed · Nova Retail Systems', status: 'Pending Review', statusClass: 'text-amber-600 bg-amber-50 border-amber-200',
-          raw: "Nag-refactor ng authentication module.\n\n\t- Na-review yung pull requests ng teammates\n\t- Nag-fix ng session timeout bug",
+          raw: "Refactored the authentication module.\n\n\t- Reviewed pull requests from teammates\n\t- Fixed a session timeout bug",
           bullet: 'Refactored authentication module and reviewed teammate pull requests.' },
         { name: 'Kaye P.', meta: 'Sept 15, 2026 · 7.5 hours claimed · Brightpath Software', status: 'Verified', statusClass: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-          raw: "Tumulong sa QA testing ng bagong release.\n\n\t- Nag-log ng 5 bugs sa tracker\n\t- Nag-retest ng mga naayos na bug",
+          raw: "Helped with QA testing for the new release.\n\n\t- Logged 5 bugs in the tracker\n\t- Retested the fixed bugs",
           bullet: 'Contributed to QA testing for a new release, logging and verifying bug fixes.' }
       ]
     },
@@ -917,7 +1023,7 @@ const taskData = {
       count: '85 / 85 Turned In',
       submissions: [
         { name: 'Aiyu T.', meta: 'Sept 10, 2026 · Self-assessment · Brightpath Software', status: 'Verified', statusClass: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-          raw: "Sa unang kalahati ng OJT ko, natutunan ko kung paano mag-collaborate gamit ang Git.\n\n\t- Naging mas komportable ako sa pagbasa ng existing codebase\n\t- Gusto kong palakasin pa yung documentation skills ko",
+          raw: "In the first half of my OJT, I learned how to collaborate using Git.\n\n\t- Became more comfortable reading an existing codebase\n\t- Want to strengthen my documentation skills further",
           bullet: 'Completed mid-term self-assessment highlighting growth in version control collaboration.' }
       ]
     }
@@ -1052,17 +1158,17 @@ on('td-approveBtn', 'click', () => {
     afterReview();
     showToast(sub.name + "'s log approved and pushed to verified resume.", 'success');
 });
-on('td-reviseBtn', 'click', () => {
+on('td-reviseBtn', 'click', async () => {
     const sub = taskInfo(currentTaskId).submissions[currentSubIndex];
-    const fb = prompt('What should ' + sub.name + ' revise? The student will see this.', document.getElementById('gradeFeedback').value.trim());
+    const fb = await askInput('What should ' + sub.name + ' revise? The student will see this.', document.getElementById('gradeFeedback').value.trim());
     if(!fb || !fb.trim()) return;
     reviewSubmission(currentTaskId, sub, 'Needs Revision', fb.trim());
     afterReview();
     showToast('Revision requested — ' + sub.name + ' will be notified.', 'warn');
 });
-on('td-rejectBtn', 'click', () => {
+on('td-rejectBtn', 'click', async () => {
     const sub = taskInfo(currentTaskId).submissions[currentSubIndex];
-    const fb = prompt('Why is ' + sub.name + "'s log rejected? The student will see this.");
+    const fb = await askInput('Why is ' + sub.name + "'s log rejected? The student will see this.");
     if(!fb || !fb.trim()) return;
     reviewSubmission(currentTaskId, sub, 'Rejected', fb.trim());
     afterReview();
@@ -1137,18 +1243,18 @@ if(document.getElementById('classList')){
     document.addEventListener('DOMContentLoaded', renderClasses);
     on('showArchived', 'change', renderClasses);
 
-    document.getElementById('classList').addEventListener('click', (e) => {
+    document.getElementById('classList').addEventListener('click', async (e) => {
         const btn = e.target.closest('button[data-act]');
         if(!btn) return;
         const code = btn.dataset.code;
         if(btn.dataset.act === 'open'){ setActiveClass(code); goTo('roster'); return; }
         if(btn.dataset.act === 'current'){ setActiveClass(code); showToast('Current batch changed to ' + code + '.', 'info'); }
-        if(btn.dataset.act === 'archive'){ updateClass(code, {status: 'archived'}); showToast('Batch archived. Its records are kept.', 'info'); }
+        if(btn.dataset.act === 'archive'){ if(!await askConfirm('Archive this batch? Its records are kept.')) return; updateClass(code, {status: 'archived'}); showToast('Batch archived. Its records are kept.', 'info'); }
         if(btn.dataset.act === 'restore'){ updateClass(code, {status: 'closed'}); showToast('Batch restored.', 'info'); }
         if(btn.dataset.act === 'rename'){ openBatchModal(code); return; }
         if(btn.dataset.act === 'delete'){
             if(myClasses().length <= 1) return showToast('You need at least one batch. Create another one first.', 'warn');
-            if(!confirm('Delete this empty batch? This cannot be undone.')) return;
+            if(!await askConfirm('Delete this empty batch? This cannot be undone.')) return;
             const stored = getJSON('ic_classes', {});
             delete stored[code];
             localStorage.setItem('ic_classes', JSON.stringify(stored));
@@ -1205,22 +1311,41 @@ if(document.getElementById('classList')){
 // Letters are made and signed outside the system; the vault only keeps and shares the signed scans.
 const VAULT_KEY = 'ic_vault';
 const VAULT_TYPES = ['MOA / MOU', 'Endorsement letter', 'Acceptance letter', 'Supervisor evaluation', 'DTR / attendance', 'Company document', 'Other'];
-// Sample partner companies only exist in the demo batch. Every other batch only has the companies whose sign up the coordinator approved (Requests page).
-const DEMO_PARTNERS = [
-    {name: 'Brightpath Software', field: 'Software Development', status: 'Active', moa: 'MOA valid until <strong class="text-slate-700">Dec 2027</strong>', hr: 'Ms. Sarah Geronimo'},
-    {name: 'Verano Digital Studio', field: 'Web & Creative Services', status: 'Expiring Soon', moa: 'MOA expires <strong class="text-slate-700">Nov 2026</strong>', hr: 'Mr. Paulo Ramirez'},
-    {name: 'Nova Retail Systems', field: 'Retail Technology', status: 'Active', moa: 'MOA valid until <strong class="text-slate-700">June 2028</strong>', hr: 'Ms. Donna Villar'},
-    {name: 'Cavite Provincial IT Office', field: 'Government / Public Sector', status: 'Active', moa: 'MOA valid until <strong class="text-slate-700">Jan 2027</strong>', hr: 'Engr. Bautista'}
-];
-function partnerList(code){
+// Sample partner companies only exist in the demo batch. Other batches only have the partners the coordinator added or approved.
+const PARTNER_COMPANIES = ['Brightpath Software', 'Verano Digital Studio', 'Nova Retail Systems', 'Cavite Provincial IT Office'];
+const DEMO_PARTNERS = PARTNER_COMPANIES.map(name => ({name}));
+// Partners without an account are added by the coordinator (ic_partners); approved partner sign ups join the list automatically
+const PARTNERS_KEY = 'ic_partners';
+const PARTNER_SEED = {
+    'Brightpath Software': {industry: 'Software Development', hr: 'Ms. Sarah Geronimo', moaUntil: '2027-12-31'},
+    'Verano Digital Studio': {industry: 'Web & Creative Services', hr: 'Mr. Paulo Ramirez', moaUntil: '2026-11-30'},
+    'Nova Retail Systems': {industry: 'Retail Technology', hr: 'Ms. Donna Villar', moaUntil: '2028-06-30'},
+    'Cavite Provincial IT Office': {industry: 'Government / Public Sector', hr: 'Engr. Bautista', moaUntil: '2027-01-31'}
+};
+// Who is using the vault: the coordinator, or the partner's HR through the partner portal
+const VAULT_ME = (getJSON('ic_session', {}) || {}).role === 'partnercompany' ? 'hr' : 'coordinator';
+function partnerAccounts(company, code){
+    const c = (company || '').toLowerCase();
     code = code || currentBatchCode();
-    const list = code === SEED_CODE ? DEMO_PARTNERS.map(d => Object.assign({}, d)) : [];
-    getUsers().filter(u => u.role === 'partnercompany' && u.classCode === code && u.status === 'active' && u.company).forEach(u => {
-        if(!list.some(p => p.name === u.company)) list.push({name: u.company, field: 'Partner company', hr: u.name, real: true});
-    });
-    return list;
+    return getUsers().filter(u => u.role === 'partnercompany' && u.status === 'active' && u.company && u.classCode === code && (!c || u.company.toLowerCase() === c));
 }
-const partnerNames = (code) => partnerList(code).map(p => p.name);
+function partnerCompanies(code){
+    code = code || currentBatchCode();
+    const saved = getJSON(PARTNERS_KEY, {});
+    const names = (code === SEED_CODE ? PARTNER_COMPANIES.slice() : []).concat(Object.keys(saved).filter(n => (saved[n].classCode || SEED_CODE) === code));
+    partnerAccounts('', code).forEach(u => { if(!names.some(n => n.toLowerCase() === u.company.toLowerCase())) names.push(u.company); });
+    return [...new Set(names)];
+}
+const partnerNames = (code) => partnerCompanies(code);
+function partnerInfo(name){
+    const acc = partnerAccounts(name), saved = getJSON(PARTNERS_KEY, {})[name] || {};
+    return Object.assign({name, industry: '', hr: acc[0] ? acc[0].name : '', moaUntil: ''}, PARTNER_SEED[name] || {}, saved, {accounts: acc, removable: !!saved.addedBy && !acc.length});
+}
+function moaStatus(until){
+    if(!until) return ['No MOA date', 'text-slate-500 bg-slate-50 border-slate-200'];
+    const days = (new Date(until) - new Date(todayISO())) / 864e5;
+    return days < 0 ? ['Expired', 'text-red-600 bg-red-50 border-red-200'] : days <= 90 ? ['Expiring Soon', 'text-amber-600 bg-amber-50 border-amber-200'] : ['Active', 'text-emerald-700 bg-emerald-50 border-emerald-200'];
+}
 
 const getVaults = () => getJSON(VAULT_KEY, {});
 const saveVaults = (all) => localStorage.setItem(VAULT_KEY, JSON.stringify(all));
@@ -1273,6 +1398,9 @@ const liveHours = (name) => Object.values(liveRecs(name)).reduce((t, r) => t + (
 // Each clock-in and clock-out has a live camera photo, a server timestamp and a GPS point checked against the company geofence.
 // Prototype: records are generated from the intern's rendered hours. Coordinator reviews of flagged records are saved in ic_attendance_review.
 const ATT_REVIEW_KEY = 'ic_attendance_review';
+// The intern's own explanation of a flagged, late or absent day, shown to the coordinator before reviewing it
+const ATT_NOTES_KEY = 'ic_att_notes';
+const ATT_REASONS = ['Field work / off-site task', 'Sick', 'Emergency', 'Company-approved absence', 'GPS or phone issue', 'Other'];
 const DELETION_KEY = 'ic_deletion_requests';
 const GEOFENCE_M = 150;
 const WORK_MODE = {'Aiyu T.': 'Hybrid', 'Leo A.': 'On-site', 'Jomari D.': 'Remote', 'Kaye P.': 'On-site'};
@@ -1315,7 +1443,7 @@ function logAudit(action, status, system){
     const d = new Date();
     const all = getJSON(AUDIT_KEY, []);
     all.push({at: isoDate(d) + ' ' + d.toTimeString().slice(0, 8), action, status: status || 'Success',
-        user: system ? 'system-auto' : 'coord-' + (sess.name || 'coordinator').split(/\s+/).map(w => w[0]).join('').toLowerCase() + '-001',
+        user: system ? 'system-auto' : (sess.role === 'partnercompany' ? 'partner-' : 'coord-') + (sess.name || 'coordinator').split(/\s+/).map(w => w[0]).join('').toLowerCase() + '-001',
         ip: system ? 'internal' : '203.177.**.**'});
     localStorage.setItem(AUDIT_KEY, JSON.stringify(all.slice(-500)));
 }
@@ -1402,7 +1530,7 @@ function internAttendance(p){
         if(off[isoDate(day)]){ if(onSchedule) out.push({date: isoDate(day), status: 'Holiday', hours: 0, place: off[isoDate(day)]}); continue; }
         if(!onSchedule && !(day.getDay() === 6 && rand() < 0.06)) continue;
         const date = isoDate(day), r = rand();
-        if(onSchedule && r < 0.05){ out.push({date, status: 'Absent', hours: 0}); continue; }
+        if(onSchedule && r < 0.05){ out.push({date, status: 'Absent', hours: 0, review: reviews[p.name + '|' + date] || ''}); continue; }
         const hours = Math.min(shift, left);
         left -= hours;
         const remote = mode === 'Remote' || (mode === 'Hybrid' && rand() < 0.4);
@@ -1423,10 +1551,12 @@ function internAttendance(p){
         return {date, timeIn: l.in, timeOut: l.out, hours: l.hours || 0, lat: l.lat, lng: l.lng, dist: remote ? null : l.dist, remote, live: true, photoIn: l.photoIn,
             radius: site.radius, place: remote ? 'Remote (work from home)' : site.place, status, review: reviews[p.name + '|' + date] || ''};
     });
-    return liveOut.concat(out.filter(r => !live[r.date]));
+    const notes = getJSON(ATT_NOTES_KEY, {});
+    return liveOut.concat(out.filter(r => !live[r.date])).map(r => Object.assign(r, {note: notes[p.name + '|' + r.date] || null}));
 }
 const rejectedHours = (p) => internAttendance(p).filter(r => r.review === 'rejected').reduce((t, r) => t + r.hours, 0);
 const pendingFlags = (p) => internAttendance(p).filter(r => r.status === 'Flagged' && !r.review).length;
+const pendingExcuses = (p) => internAttendance(p).filter(r => r.status === 'Absent' && r.note && !r.review).length;
 
 // Placeholder for the live camera capture, stamped with the server time and GPS point
 function clockPhoto(p, rec, kind){
@@ -1632,7 +1762,7 @@ if(document.getElementById('rosterInternsBody')){
     on('backToClassesBtn', 'click', () => goTo('classes'));
     on('goRequestsBtn', 'click', () => goTo('requests'));
 
-    document.getElementById('tab-roster').addEventListener('click', (e) => {
+    document.getElementById('tab-roster').addEventListener('click', async (e) => {
         const btn = e.target.closest('button[data-act]');
         if(!btn || btn.disabled) return;
         const m = rosterMembers.find(x => x.id === btn.dataset.id);
@@ -1640,7 +1770,7 @@ if(document.getElementById('rosterInternsBody')){
         if(btn.dataset.act === 'files'){ openInternFiles(m.company, m.name); return; }
         if(btn.dataset.act === 'complete'){
             if(!hasDoc(m.company, m.name, 'Supervisor evaluation')){
-                if(confirm('There is no signed supervisor evaluation scan in ' + m.name + "'s vault folder yet.\n\nOpen the folder to upload it?")) openInternFiles(m.company, m.name);
+                askConfirm('There is no signed supervisor evaluation scan in ' + m.name + "'s vault folder yet.\n\nOpen the folder to upload it?").then(ok => { if(ok) openInternFiles(m.company, m.name); });
                 return;
             }
             setMember(m, {status: 'alumni', completedAt: todayISO(), employment: 'seeking', requested: false});
@@ -1649,7 +1779,7 @@ if(document.getElementById('rosterInternsBody')){
             showToast(m.name + ' is now an alumni. Records kept until ' + retainUntil(todayISO()) + '.', 'success');
         }
         if(btn.dataset.act === 'withdraw'){
-            if(!confirm('Mark ' + m.name + ' as withdrawn? They will stay in this batch records.')) return;
+            if(!await askConfirm('Mark ' + m.name + ' as withdrawn? They will stay in this batch records.')) return;
             setMember(m, {status: 'withdrawn', withdrawnAt: todayISO()});
             showToast(m.name + ' was marked as withdrawn.', 'warn');
         }
@@ -1664,10 +1794,10 @@ if(document.getElementById('rosterInternsBody')){
     });
 
     // Close Batch: interns with complete hours become alumni, the rest stay in this batch
-    on('closeBatchBtn', 'click', () => {
+    on('closeBatchBtn', 'click', async () => {
         const ready = rosterMembers.filter(m => m.status === 'intern' && m.hours >= REQUIRED_HOURS && hasDoc(m.company, m.name, 'Supervisor evaluation'));
         const ongoing = rosterMembers.filter(m => m.status === 'intern').length - ready.length;
-        if(!confirm('Close this batch? ' + ready.length + ' intern(s) with complete hours and a supervisor evaluation will become alumni. ' + ongoing + ' will stay until they finish. No new students can join.')) return;
+        if(!await askConfirm('Close this batch? ' + ready.length + ' intern(s) with complete hours and a supervisor evaluation will become alumni. ' + ongoing + ' will stay until they finish. No new students can join.')) return;
         ready.forEach(m => setMember(m, {status: 'alumni', completedAt: todayISO(), employment: 'seeking'}));
         updateClass(activeClassCode(), {status: 'closed'});
         renderRoster();
@@ -1906,23 +2036,28 @@ function vaultFolderRow(v, f){
       + '<button data-open-folder="' + esc(f.id) + '" class="flex items-center gap-2.5 min-w-0 flex-1 text-left">'
       +   '<i class="fa-solid ' + (f.intern ? 'fa-folder-closed' : 'fa-folder') + ' text-amber-400 flex-shrink-0"></i>'
       +   '<div class="min-w-0"><div class="text-[12.5px] font-medium text-slate-700 truncate">' + (f.intern ? '<i class="fa-solid fa-user text-[10px] text-slate-400 mr-1"></i>' : '') + esc(f.name) + '</div>'
-      +   '<div class="text-[10.5px] text-slate-400">' + count + ' file' + (count === 1 ? '' : 's') + (f.system ? '' : ' · your folder') + '</div></div></button>'
-      + (f.system ? '<i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>'
+      +   '<div class="text-[10.5px] text-slate-400">' + count + ' file' + (count === 1 ? '' : 's') + (f.system ? '' : (f.owner || 'coordinator') === VAULT_ME ? ' · your folder' : VAULT_ME === 'hr' ? ' · coordinator folder' : ' · partner folder') + '</div></div></button>'
+      + (f.system || (f.owner || 'coordinator') !== VAULT_ME ? '<i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>'
           : '<div class="flex gap-2 flex-shrink-0">'
           +   '<button data-folder-act="rename" data-id="' + esc(f.id) + '" class="' + VAULT_BTN + 'text-sky-600 bg-sky-50 hover:bg-sky-100"><i class="fa-solid fa-pen mr-1"></i>Rename</button>'
           +   '<button data-folder-act="delete" data-id="' + esc(f.id) + '" class="' + VAULT_BTN + 'text-red-600 bg-red-50 hover:bg-red-100"><i class="fa-solid fa-trash mr-1"></i>Delete</button></div>')
       + '</div>';
 }
 function vaultFileRow(v, f, showPath){
-    const mine = f.owner === 'coordinator';
+    const owns = f.owner === VAULT_ME, mine = owns || f.unlocked === VAULT_ME, asker = f.pendingBy || 'coordinator';
     const icon = /\.(jpe?g|png)$/i.test(f.name) ? 'fa-file-image text-sky-500' : 'fa-file-pdf text-red-500';
-    const meta = [esc(f.type), mine ? 'Uploaded by you' : 'Uploaded by partner HR', formatDate(f.uploadedAt), 'v' + f.version];
+    const meta = [esc(f.type), owns ? 'Uploaded by you' : VAULT_ME === 'hr' ? 'Uploaded by coordinator' : 'Uploaded by partner HR', formatDate(f.uploadedAt), 'v' + f.version];
+    const ofIntern = internOfFolder(v, f.folder);
+    if(ofIntern && getJSON('ic_checklist', {})[ofIntern + '|' + f.type]) meta.push('<span class="text-emerald-700 font-medium">Verified by coordinator</span>');
     if(showPath) meta.unshift('<i class="fa-solid fa-folder text-amber-400 mr-0.5"></i>' + esc(folderLabel(v, f.folder)));
-    const pending = f.pending ? ' <span class="ml-1 text-[9.5px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">' + (f.pending === 'delete' ? 'Delete' : 'Edit') + ' request pending</span>' : '';
-    const actions = f.pending ? '' : mine
+    const pending = f.pending ? ' <span class="ml-1 text-[9.5px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">' + (owns && asker !== VAULT_ME ? (asker === 'hr' ? 'Partner' : 'Coordinator') + ' asks to ' + f.pending : (f.pending === 'delete' ? 'Delete' : 'Edit') + ' request pending') + '</span>' : '';
+    const actions = f.pending
+      ? (owns && asker !== VAULT_ME ? '<button data-file-act="approve-req" data-id="' + f.id + '" class="' + VAULT_BTN + 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100"><i class="fa-solid fa-check mr-1"></i>Approve</button>'
+        + '<button data-file-act="decline-req" data-id="' + f.id + '" class="' + VAULT_BTN + 'text-slate-600 bg-slate-100 hover:bg-slate-200"><i class="fa-solid fa-xmark mr-1"></i>Decline</button>' : '')
+      : mine
       ? '<button data-file-act="rename" data-id="' + f.id + '" class="' + VAULT_BTN + 'text-sky-600 bg-sky-50 hover:bg-sky-100"><i class="fa-solid fa-pen mr-1"></i>Rename</button>'
       + '<button data-file-act="replace" data-id="' + f.id + '" class="' + VAULT_BTN + 'text-sky-600 bg-sky-50 hover:bg-sky-100"><i class="fa-solid fa-arrow-up-from-bracket mr-1"></i>Replace</button>'
-      + '<button data-file-act="delete" data-id="' + f.id + '" class="' + VAULT_BTN + 'text-red-600 bg-red-50 hover:bg-red-100"><i class="fa-solid fa-trash mr-1"></i>Delete</button>'
+      + (owns ? '<button data-file-act="delete" data-id="' + f.id + '" class="' + VAULT_BTN + 'text-red-600 bg-red-50 hover:bg-red-100"><i class="fa-solid fa-trash mr-1"></i>Delete</button>' : '')
       : '<button data-file-act="request-edit" data-id="' + f.id + '" class="' + VAULT_BTN + 'text-slate-500 bg-slate-100 hover:bg-slate-200"><i class="fa-solid fa-lock mr-1"></i>Request edit</button>'
       + '<button data-file-act="request-delete" data-id="' + f.id + '" class="' + VAULT_BTN + 'text-slate-500 bg-slate-100 hover:bg-slate-200"><i class="fa-solid fa-lock mr-1"></i>Request delete</button>';
     return '<div class="flex flex-wrap items-center justify-between gap-2 border border-slate-200 rounded-md px-3 py-2.5">'
@@ -1981,34 +2116,8 @@ function openVault(company, intern){
     vaultModal.classList.remove('hidden');
 }
 
-function partnerCard(p){
-    const n = placementList().filter(x => x.company === p.name && ['Deployed', 'Hours complete'].includes(x.status)).length;
-    let moa = p.moa, status = p.status;
-    if(p.real){
-        const file = ((getVaults()[p.name] || {}).files || []).find(f => f.type === 'MOA / MOU');
-        moa = file ? 'MOA on file, uploaded <strong class="text-slate-700">' + formatDate(file.uploadedAt) + '</strong>' : 'No MOA on file yet. Upload it to the vault.';
-        status = file ? 'Active' : 'MOA needed';
-    }
-    const badge = {'Active': 'text-emerald-700 bg-emerald-50 border-emerald-200'}[status] || 'text-amber-600 bg-amber-50 border-amber-200';
-    return '<div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">'
-      + '<div class="flex items-start justify-between"><div><div class="font-semibold text-slate-900">' + esc(p.name) + '</div><div class="text-[12px] text-slate-500 mt-0.5">' + esc(p.field) + '</div></div>'
-      + '<span class="text-[11px] font-semibold px-2.5 py-1 rounded-full border ' + badge + '">' + status + '</span></div>'
-      + '<div class="text-[12px] text-slate-500 mt-3">' + moa + '</div>'
-      + '<div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 text-[12.5px]">'
-      + '<span class="text-slate-600"><i class="fa-solid fa-users mr-1.5 text-slate-400"></i>' + n + (n === 1 ? ' intern' : ' interns') + ' deployed</span>'
-      + '<span class="text-slate-400">HR: ' + esc(p.hr || '—') + '</span></div>'
-      + '<button class="open-vault-btn mt-3 w-full text-[12px] font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-3 py-2 rounded-md transition" data-company="' + esc(p.name) + '"><i class="fa-solid fa-vault mr-1.5"></i>Open Vault</button></div>';
-}
-const partnerGrid = document.getElementById('partnerGrid');
-if(partnerGrid){
-    const list = partnerList();
-    partnerGrid.innerHTML = list.length ? list.map(partnerCard).join('')
-        : '<div class="md:col-span-2 bg-white rounded-xl border border-dashed border-slate-300 p-8 text-center text-[12.5px] text-slate-500">No partner companies in this batch yet.<br>Companies appear here after you approve their request on the Requests page.</div>';
-}
-
 if(vaultModal){
-    document.querySelectorAll('.open-vault-btn').forEach(btn => btn.addEventListener('click', () => openVault(btn.dataset.company)));
-    renderSiteLines();
+    renderPartnerGrid();
     on('closeVaultModalBtn', 'click', () => vaultModal.classList.add('hidden'));
     ['vaultSearch', 'vaultTypeFilter', 'vaultInternFilter'].forEach(id => on(id, id === 'vaultSearch' ? 'input' : 'change', renderVault));
 
@@ -2038,7 +2147,7 @@ if(vaultModal){
         renderVault();
     });
 
-    document.getElementById('vaultFileList').addEventListener('click', (e) => {
+    document.getElementById('vaultFileList').addEventListener('click', async (e) => {
         const open = e.target.closest('[data-open-folder]');
         if(open){
             vaultFolder = open.dataset.openFolder;
@@ -2051,13 +2160,13 @@ if(vaultModal){
         if(folderBtn){
             const folder = folderById(v, folderBtn.dataset.id);
             if(folderBtn.dataset.folderAct === 'rename'){
-                const name = (prompt('Rename folder', folder.name) || '').trim();
+                const name = (await askInput('Rename folder', folder.name) || '').trim();
                 if(!name || name === folder.name) return;
                 updateVault(vaultCompany, vt => { folderById(vt, folder.id).name = name; });
                 showToast('Folder renamed to "' + name + '".', 'success');
             } else {
                 if(filesUnder(v, folder.id) || subfolderIds(v, folder.id).length){ showToast('Move or delete what is inside "' + folder.name + '" first.', 'warn'); return; }
-                if(!confirm('Delete the empty folder "' + folder.name + '"?')) return;
+                if(!await askConfirm('Delete the empty folder "' + folder.name + '"?')) return;
                 updateVault(vaultCompany, vt => { vt.folders = vt.folders.filter(f => f.id !== folder.id); });
                 showToast('Folder deleted.', 'info');
             }
@@ -2072,20 +2181,31 @@ if(vaultModal){
         if(act === 'download'){ showToast('Downloading "' + file.name + '"…', 'info'); return; }
         if(act === 'replace'){ replaceTargetId = file.id; document.getElementById('vaultReplaceInput').click(); return; }
         if(act === 'rename'){
-            const name = (prompt('Rename file', file.name) || '').trim();
+            const name = (await askInput('Rename file', file.name) || '').trim();
             if(!name || name === file.name) return;
-            updateVault(vaultCompany, vt => { vt.files.find(f => f.id === file.id).name = name; });
+            updateVault(vaultCompany, vt => { const x = vt.files.find(f => f.id === file.id); x.name = name; if(x.unlocked === VAULT_ME) delete x.unlocked; });
             showToast('File renamed to "' + name + '".', 'success');
         }
         if(act === 'delete'){
-            if(!confirm('Delete "' + file.name + '" from the vault? This cannot be undone.')) return;
+            if(!await askConfirm('Delete "' + file.name + '" from the vault? This cannot be undone.')) return;
             updateVault(vaultCompany, vt => { vt.files = vt.files.filter(f => f.id !== file.id); });
             showToast('"' + file.name + '" deleted.', 'info');
         }
         if(act === 'request-edit' || act === 'request-delete'){
             const kind = act === 'request-edit' ? 'edit' : 'delete';
-            updateVault(vaultCompany, vt => { vt.files.find(f => f.id === file.id).pending = kind; });
-            showToast(capitalize(kind) + ' request for "' + file.name + '" sent to ' + vaultCompany + "'s HR. The file stays as is until they approve.", 'info');
+            updateVault(vaultCompany, vt => { Object.assign(vt.files.find(f => f.id === file.id), {pending: kind, pendingBy: VAULT_ME}); });
+            logAudit('Requested to ' + kind + ' ' + file.name + ' (' + vaultCompany + ' vault)', 'Pending');
+            showToast(capitalize(kind) + ' request for "' + file.name + '" sent to ' + (VAULT_ME === 'hr' ? 'your coordinator' : vaultCompany + "'s HR") + '. The file stays as is until they approve.', 'info');
+        }
+        if(act === 'approve-req' || act === 'decline-req'){
+            const kind = file.pending, by = (file.pendingBy || 'coordinator') === 'hr' ? vaultCompany + ' HR' : 'the coordinator';
+            if(act === 'decline-req' && !await askConfirm('Decline the request of ' + by + ' for "' + file.name + '"? The file stays as is.')) return;
+            if(act === 'approve-req' && kind === 'delete'){
+                if(!await askConfirm('Approve the request of ' + by + ' and delete "' + file.name + '"?')) return;
+                updateVault(vaultCompany, vt => { vt.files = vt.files.filter(f => f.id !== file.id); });
+            } else updateVault(vaultCompany, vt => { const x = vt.files.find(f => f.id === file.id); if(act === 'approve-req') x.unlocked = x.pendingBy || 'coordinator'; delete x.pending; delete x.pendingBy; });
+            logAudit((act === 'approve-req' ? 'Approved ' : 'Declined ') + 'the ' + kind + ' request of ' + by + ' for ' + file.name + ' (' + vaultCompany + ' vault)');
+            showToast(act === 'decline-req' ? 'Request declined. The file stays as is.' : kind === 'delete' ? '"' + file.name + '" deleted.' : by.charAt(0).toUpperCase() + by.slice(1) + ' can now rename or replace "' + file.name + '" once.', act === 'decline-req' ? 'info' : 'success');
         }
         renderVault();
     });
@@ -2097,18 +2217,19 @@ if(vaultModal){
         updateVault(vaultCompany, vt => {
             const f = vt.files.find(x => x.id === replaceTargetId);
             Object.assign(f, {name: picked.name, version: f.version + 1, uploadedAt: todayISO()});
+            if(f.unlocked === VAULT_ME) delete f.unlocked;
         });
         replaceTargetId = null;
         renderVault();
         showToast('New version uploaded. The previous version is kept in the file history.', 'success');
     });
 
-    on('vaultNewFolderBtn', 'click', () => {
-        const name = (prompt('New folder name' + (vaultFolder ? ' (inside ' + folderLabel(ensureVault(vaultCompany), vaultFolder) + ')' : '')) || '').trim();
+    on('vaultNewFolderBtn', 'click', async () => {
+        const name = (await askInput('New folder name' + (vaultFolder ? ' (inside ' + folderLabel(ensureVault(vaultCompany), vaultFolder) + ')' : '')) || '').trim();
         if(!name) return;
         const v = ensureVault(vaultCompany);
         if(v.folders.some(f => (f.parent || null) === vaultFolder && f.name.toLowerCase() === name.toLowerCase())){ showToast('A folder with that name already exists here.', 'warn'); return; }
-        updateVault(vaultCompany, vt => { vt.folders.push({id: 'f-' + vaultId(), name, parent: vaultFolder, system: false}); });
+        updateVault(vaultCompany, vt => { vt.folders.push({id: 'f-' + vaultId(), name, parent: vaultFolder, system: false, owner: VAULT_ME}); });
         renderVault();
         showToast('Folder "' + name + '" created.', 'success');
     });
@@ -2133,13 +2254,14 @@ if(vaultModal){
         if(!picked){ showToast('Choose the signed scan to upload first.', 'warn'); return; }
         const folder = document.getElementById('vaultUploadFolder').value;
         const type = document.getElementById('vaultUploadType').value;
-        updateVault(vaultCompany, vt => { vt.files.push({id: vaultId(), name: picked.name, folder, type, owner: 'coordinator', uploadedAt: todayISO(), version: 1}); });
+        updateVault(vaultCompany, vt => { vt.files.push({id: vaultId(), name: picked.name, folder, type, owner: VAULT_ME, uploadedAt: todayISO(), version: 1}); });
+        if(VAULT_ME === 'hr') logAudit('Partner HR uploaded ' + picked.name + ' (' + type + ') to ' + folderLabel(ensureVault(vaultCompany), folder), 'Pending');
         input.value = '';
         document.getElementById('vaultUploadForm').classList.add('hidden');
         vaultFolder = folder;
         ['vaultSearch', 'vaultTypeFilter', 'vaultInternFilter'].forEach(id => document.getElementById(id).value = '');
         renderVault();
-        showToast('Uploaded to ' + folderLabel(ensureVault(vaultCompany), folder).replace(/\.$/, '') + '.', 'success');
+        showToast('Uploaded to ' + folderLabel(ensureVault(vaultCompany), folder).replace(/\.$/, '') + '.' + (VAULT_ME === 'hr' ? ' Your coordinator will verify it.' : ''), 'success');
     });
 }
 
@@ -2197,13 +2319,13 @@ function renderPlacements(){
 
 // Moves a student one step; endorse and accept need the signed scan in the vault first
 let applyTarget = '';
-function placementAction(name, act){
+async function placementAction(name, act){
     const p = placementList().find(x => x.name === name);
     if(!p) return;
     const history = (status, note) => (p.history || []).concat(note ? {status, date: todayISO(), note} : {status, date: todayISO()});
     const needScan = (type) => {
         if(hasDoc(p.company, p.name, type)) return false;
-        if(confirm('There is no signed ' + type.toLowerCase() + ' scan in ' + p.name + "'s vault folder yet.\n\nOpen the folder to upload it?")) openInternFiles(p.company, p.name);
+        askConfirm('There is no signed ' + type.toLowerCase() + ' scan in ' + p.name + "'s vault folder yet.\n\nOpen the folder to upload it?").then(ok => { if(ok) openInternFiles(p.company, p.name); });
         return true;
     };
     if(act === 'files'){ openInternFiles(p.company, p.name); return; }
@@ -2238,7 +2360,7 @@ function placementAction(name, act){
         return;
     }
     if(act === 'decline'){
-        if(!confirm(p.company + ' did not accept ' + name + '? The student goes back to Not placed. Files in the vault are kept.')) return;
+        if(!await askConfirm(p.company + ' did not accept ' + name + '? The student goes back to Not placed. Files in the vault are kept.')) return;
         savePlacement(name, {status: 'Not placed', company: '', history: history('Not placed', 'Not accepted by ' + p.company)});
         showToast(esc(name) + ' is back to Not placed.', 'warn');
     }
@@ -2312,6 +2434,7 @@ function attendanceCard(p, deployed){
     const count = (st) => recs.filter(r => r.status === st).length;
     const flagsPending = recs.filter(r => r.status === 'Flagged' && !r.review).length;
     const rejected = recs.filter(r => r.review === 'rejected').reduce((t, r) => t + r.hours, 0);
+    const excused = recs.filter(r => r.status === 'Absent' && r.review === 'excused').length;
     const last = worked[0];
     const stat = (label, value, sub, tone) => '<div class="rounded-lg border border-slate-200 px-3 py-2.5"><div class="text-[10.5px] text-slate-500">' + label + '</div>'
         + '<div class="text-lg font-bold leading-tight ' + (tone || 'text-slate-900') + '">' + value + '</div>' + (sub ? '<div class="text-[10.5px] text-slate-400 truncate">' + sub + '</div>' : '') + '</div>';
@@ -2319,7 +2442,7 @@ function attendanceCard(p, deployed){
         + stat('Days present', worked.length, 'of ' + workDays + ' working days' + (count('Holiday') ? ' · ' + count('Holiday') + ' holiday' + (count('Holiday') > 1 ? 's' : '') : ''))
         + stat('Hours rendered', p.hours || 0, 'of ' + REQUIRED_HOURS + (rejected ? ' · ' + rejected + ' rejected' : ''))
         + stat('Late', count('Late'), 'after ' + fmtClock(clockMins(scheduleOf(p).timeIn) + scheduleOf(p).grace), count('Late') ? 'text-amber-600' : '')
-        + stat('Absent', count('Absent'), 'no clock-in', count('Absent') ? 'text-slate-700' : '')
+        + stat('Absent', count('Absent') - excused, excused ? excused + ' excused' : 'no clock-in', count('Absent') - excused ? 'text-slate-700' : '')
         + stat('Flagged', flagsPending, flagsPending ? 'needs your review' : 'all reviewed', flagsPending ? 'text-red-600' : '')
         + stat('Last clock-in', formatDate(last.date).replace(/, \d{4}$/, ''), fmtClock(last.timeIn))
         + '</div>';
@@ -2334,20 +2457,23 @@ function attendanceCard(p, deployed){
     const photo = (r, kind) => '<button data-pf-act="att-photo" data-date="' + r.date + '" data-kind="' + kind + '" class="flex items-center gap-2 group" title="View photo and location">'
         + '<img src="' + clockPhoto(p, r, kind) + '" alt="' + (kind === 'in' ? 'Clock-in' : 'Clock-out') + ' photo" class="w-7 h-9 rounded object-cover border border-slate-200 group-hover:ring-2 group-hover:ring-sky-300">'
         + '<span class="text-[12px] text-slate-700">' + fmtClock(kind === 'in' ? r.timeIn : r.timeOut) + '</span></button>';
-    const review = (r) => r.status !== 'Flagged' ? ''
+    const noteHtml = (r) => !r.note ? '' : '<div class="mt-1 text-[10.5px] text-slate-500 max-w-[230px] whitespace-normal leading-snug" title="Intern\'s explanation"><i class="fa-regular fa-comment mr-1 text-sky-500"></i><strong class="text-slate-600">' + esc(r.note.type) + ':</strong> ' + esc(r.note.reason) + '</div>';
+    const absentReview = (r) => !r.review ? (r.note ? '<button data-pf-act="att-excuse" data-date="' + r.date + '" class="text-[10.5px] font-semibold text-emerald-700 hover:text-emerald-800">Excuse</button><button data-pf-act="att-keep" data-date="' + r.date + '" class="ml-2 text-[10.5px] font-semibold text-slate-500 hover:text-slate-700">Keep absent</button>' : '')
+        : '<span class="text-[10.5px] font-semibold ' + (r.review === 'excused' ? 'text-emerald-700' : 'text-slate-500') + '">' + (r.review === 'excused' ? 'Excused' : 'Kept absent') + '</span><button data-pf-act="att-undo" data-date="' + r.date + '" class="ml-2 text-[10.5px] text-slate-400 hover:text-slate-600">Undo</button>';
+    const review = (r) => r.status === 'Absent' ? absentReview(r) : r.status !== 'Flagged' ? ''
         : !r.review ? '<button data-pf-act="att-accept" data-date="' + r.date + '" class="text-[10.5px] font-semibold text-emerald-700 hover:text-emerald-800">Accept</button><button data-pf-act="att-reject" data-date="' + r.date + '" class="ml-2 text-[10.5px] font-semibold text-red-600 hover:text-red-700">Reject</button>'
         : '<span class="text-[10.5px] font-semibold ' + (r.review === 'accepted' ? 'text-emerald-700' : 'text-red-600') + '">' + (r.review === 'accepted' ? 'Accepted' : 'Rejected') + '</span><button data-pf-act="att-undo" data-date="' + r.date + '" class="ml-2 text-[10.5px] text-slate-400 hover:text-slate-600">Undo</button>';
     const rows = shown.map(r => {
         const absent = r.status === 'Absent' || r.status === 'Holiday';
         const where = r.status === 'Holiday' ? '<span class="text-violet-700">' + esc(r.place) + '</span>' : absent ? '—' : r.remote ? '<span class="text-slate-600">' + r.place + '</span>'
             : '<div class="text-slate-600">' + esc(r.place) + '</div><div class="text-[10.5px] ' + (r.dist > (r.radius || GEOFENCE_M) ? 'text-red-500' : 'text-slate-400') + '">' + (r.dist > (r.radius || GEOFENCE_M) ? 'Outside geofence · ' : 'Inside geofence · ') + r.dist + ' m</div>';
-        return '<tr' + (r.status === 'Flagged' && !r.review ? ' class="bg-red-50/40"' : '') + '>'
+        return '<tr' + (r.status === 'Flagged' && !r.review ? ' class="bg-red-50/40"' : r.status === 'Absent' && r.note && !r.review ? ' class="bg-amber-50/40"' : '') + '>'
           + '<td class="px-3 py-2 text-[12px] text-slate-700 whitespace-nowrap">' + formatDate(r.date) + '<div class="text-[10.5px] text-slate-400">' + new Date(r.date + 'T00:00:00').toLocaleDateString('en-US', {weekday: 'short'}) + '</div></td>'
           + '<td class="px-3 py-2">' + (absent ? '<span class="text-[12px] text-slate-400">—</span>' : photo(r, 'in')) + '</td>'
-          + '<td class="px-3 py-2">' + (absent ? '<span class="text-[12px] text-slate-400">—</span>' : photo(r, 'out')) + '</td>'
+          + '<td class="px-3 py-2">' + (absent || r.timeOut == null ? '<span class="text-[12px] text-slate-400">—</span>' : '<span class="text-[12px] text-slate-700">' + fmtClock(r.timeOut) + '</span>') + '</td>'
           + '<td class="px-3 py-2 text-[12px]">' + where + '</td>'
           + '<td class="px-3 py-2 text-[12px] font-medium whitespace-nowrap ' + (r.review === 'rejected' ? 'text-slate-400 line-through' : 'text-slate-700') + '">' + (r.status === 'Holiday' ? '—' : r.hours + ' hrs') + (r.review === 'rejected' ? '<div class="text-[10px] font-normal text-red-500 no-underline">not counted</div>' : '') + '</td>'
-          + '<td class="px-3 py-2"><span class="text-[10.5px] font-semibold border px-2 py-0.5 rounded-full ' + ATT_BADGE[r.status] + '">' + r.status + '</span></td>'
+          + '<td class="px-3 py-2"><span class="text-[10.5px] font-semibold border px-2 py-0.5 rounded-full ' + ATT_BADGE[r.status] + '">' + r.status + '</span>' + noteHtml(r) + '</td>'
           + '<td class="px-3 py-2 whitespace-nowrap">' + review(r) + '</td></tr>';
     }).join('');
     const table = '<div class="overflow-x-auto -mx-1"><table class="w-full text-left"><thead><tr class="text-[10.5px] uppercase tracking-wide text-slate-400 border-b border-slate-200">'
@@ -2497,12 +2623,17 @@ if(document.getElementById('internProfile')){
             if(act === 'att-export'){ exportAttendanceCsv(p); return; }
             if(act === 'att-filter'){ attFilter = btn.dataset.f; attShowAll = false; }
             if(act === 'att-all') attShowAll = !attShowAll;
-            if(['att-accept', 'att-reject', 'att-undo'].includes(act)){
+            if(['att-accept', 'att-reject', 'att-excuse', 'att-keep', 'att-undo'].includes(act)){
                 const reviews = getJSON(ATT_REVIEW_KEY, {});
-                const key = p.name + '|' + btn.dataset.date;
+                const key = p.name + '|' + btn.dataset.date, day = formatDate(btn.dataset.date);
+                const RESULT = {
+                    'att-accept': ['accepted', 'Accepted flagged clock-in', 'Clock-in on ' + day + ' accepted.', 'success', 'Verified'],
+                    'att-reject': ['rejected', 'Rejected flagged clock-in', 'Clock-in on ' + day + ' rejected.', 'warn', 'Flagged'],
+                    'att-excuse': ['excused', 'Excused the absence', day + ' marked as excused.', 'success', 'Verified'],
+                    'att-keep': ['unexcused', 'Kept the absence', day + ' stays absent.', 'info', 'Flagged']
+                };
                 if(act === 'att-undo') delete reviews[key];
-                else { reviews[key] = act === 'att-accept' ? 'accepted' : 'rejected'; showToast('Clock-in on ' + formatDate(btn.dataset.date) + (act === 'att-accept' ? ' accepted.' : ' rejected.'), act === 'att-accept' ? 'success' : 'warn'); }
-                if(act !== 'att-undo') logAudit((act === 'att-accept' ? 'Accepted' : 'Rejected') + ' flagged clock-in of ' + p.name + ' on ' + btn.dataset.date, act === 'att-accept' ? 'Verified' : 'Flagged');
+                else { const [val, verb, msg, tone, st] = RESULT[act]; reviews[key] = val; showToast(msg, tone); logAudit(verb + ' of ' + p.name + ' on ' + btn.dataset.date, st); }
                 localStorage.setItem(ATT_REVIEW_KEY, JSON.stringify(reviews));
             }
             renderProfile(profileName);
@@ -2627,7 +2758,7 @@ function renderDeletionRequests(){
 }
 if(document.getElementById('wr-deletions')){
     renderDeletionRequests();
-    document.getElementById('wr-deletions').addEventListener('click', (e) => {
+    document.getElementById('wr-deletions').addEventListener('click', async (e) => {
         const btn = e.target.closest('[data-del-act]');
         if(!btn || btn.disabled) return;
         const act = btn.dataset.delAct, name = btn.dataset.name;
@@ -2644,7 +2775,7 @@ if(document.getElementById('wr-deletions')){
         if(act === 'resume'){ saveDeletionRequest(name, {status: 'pending', holdReason: '', heldAt: ''}); logAudit('Removed the hold on the deletion request of ' + name); }
         if(act === 'approve'){
             const p = placementList().find(x => x.name === name);
-            if(!confirm('Delete the profile, resume and job-matching data of ' + name + '?\n\nThe OJT record stays read-only until ' + retainUntil(alumniCompletedAt(p)) + '. This cannot be undone.')) return;
+            if(!await askConfirm('Delete the profile, resume and job-matching data of ' + name + '?\n\nThe OJT record stays read-only until ' + retainUntil(alumniCompletedAt(p)) + '. This cannot be undone.')) return;
             saveDeletionRequest(name, {status: 'processed', processedAt: todayISO(), completedAt: alumniCompletedAt(p)});
             logAudit('Deleted the profile, resume and job-matching data of ' + name + ' (OJT record kept until ' + retainUntil(alumniCompletedAt(p)) + ')', 'Deleted');
             showToast('Profile data of ' + esc(name) + ' deleted. OJT record kept until ' + retainUntil(alumniCompletedAt(p)) + '.', 'success');
@@ -2678,6 +2809,7 @@ function attentionItems(){
         if(p.status === 'Endorsed') add('fa-hourglass-half', 'slate', 'Waiting for the acceptance letter of ' + who, pages.placements + '?stage=Endorsed');
         if(p.status === 'Accepted') add('fa-plane-departure', 'emerald', 'Confirm deployment of ' + who, pages.placements + '?stage=Accepted');
         if(pendingFlags(p)) add('fa-location-crosshairs', 'red', pendingFlags(p) + ' clock-in(s) of ' + who + ' were outside the geofence. Review them', profileLink(p.name) + '#attendance');
+        if(pendingExcuses(p)) add('fa-comment-dots', 'amber', who + ' explained ' + pendingExcuses(p) + ' absence(s). Excuse or keep them', profileLink(p.name) + '#attendance');
         if(internAtRisk(p)) add('fa-triangle-exclamation', 'red', who + ' is at risk: ' + (p.hours || 0) + ' / ' + REQUIRED_HOURS + ' hours', profileLink(p.name));
         if(p.status === 'Hours complete') add('fa-clipboard-check', 'amber', hasDoc(p.company, p.name, 'Supervisor evaluation') ? who + ' is ready to mark completed' : who + ' finished the hours. Upload the supervisor evaluation', hasDoc(p.company, p.name, 'Supervisor evaluation') ? pages.roster : profileLink(p.name));
     });
@@ -2969,11 +3101,12 @@ function processAlumniRequest(email, action){
     renderAlumniRequestSection();
 }
 
-document.addEventListener('click', (e) => {
+document.addEventListener('click', async (e) => {
     const approve = e.target.closest('.alumni-approve');
     const reject = e.target.closest('.alumni-reject');
     if(approve || reject){
         const card = (approve || reject).closest('[data-alumni-request-email]');
+        if(reject && card && !await askConfirm('Reject this alumni request? The student stays an intern.')) return;
         if(card) processAlumniRequest(card.dataset.alumniRequestEmail, approve ? 'approve' : 'reject');
     }
 });
@@ -3492,8 +3625,6 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
       input.value = btn.textContent.trim();
       input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
     }));
-    document.getElementById('saveSkillsBtn')?.addEventListener('click',()=>{renderResumePreview(); document.getElementById('saveSkillsMicrocopy')?.classList.remove('hidden'); toast('Saved — your resume preview has been updated.','success');});
-    document.getElementById('uploadResumePdfBtn')?.addEventListener('click',()=>{const row=document.getElementById('uploadedPdfRow'); if(row){row.classList.remove('hidden'); row.classList.add('flex');} toast('Resume PDF attached.','success');});
     document.getElementById('addCertBtn')?.addEventListener('click',()=>{
       const rows=document.getElementById('certRows'); if(!rows) return;
       if(rows.children.length>=5) return toast('Maximum of 5 certification entries reached.','warn');
@@ -3510,6 +3641,50 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     });
     document.getElementById('includeThesisToggle')?.addEventListener('change',function(){document.getElementById('thesisFields')?.classList.toggle('hidden',!this.checked);});
     document.getElementById('includeCertsToggle')?.addEventListener('change',function(){document.getElementById('certRows')?.classList.toggle('hidden',!this.checked); document.getElementById('addCertBtn')?.classList.toggle('hidden',!this.checked);});
+    // Self-declared profile is saved per student (ic_resume); Job Matching reads the skills from here
+    const me = getJSON('ic_session', {}), key = (me.email || me.name || '').toLowerCase(), $r = id => document.getElementById(id);
+    const escR = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const FIELDS = ['ed-name', 'ed-phone', 'ed-email', 'ed-objective', 'ed-workexp', 'ed-education', 'ed-thesisTitle', 'ed-thesisRole', 'ed-volunteer', 'ed-awards'];
+    const chipsOf = box => [...document.querySelectorAll('#' + box + ' .tag-chip')].map(c => (c.childNodes[0]?.textContent || '').trim()).filter(Boolean);
+    const langs = () => [...document.querySelectorAll('#resume-edit .gap-x-5 input')];
+    const savePart = patch => { const all = getJSON('ic_resume', {}); all[key] = Object.assign(all[key] || {}, patch); localStorage.setItem('ic_resume', JSON.stringify(all)); };
+    const collect = () => ({
+      fields: Object.fromEntries(FIELDS.map(id => [id, $r(id)?.value || ''])),
+      soft: chipsOf('softTagBox'), hard: chipsOf('techTagBox'),
+      thesisOn: !!$r('includeThesisToggle')?.checked, certsOn: !!$r('includeCertsToggle')?.checked,
+      certs: [...document.querySelectorAll('#certRows > div')].map(row => [...row.querySelectorAll('input, select')].map(x => x.value)).filter(c => c[0]),
+      langs: langs().map(x => x.type === 'checkbox' ? x.checked : x.value),
+      custom: [...document.querySelectorAll('.custom-section-edit')].map(c => ({title: c.querySelector('.custom-title').value, text: c.querySelector('.custom-text').value})).filter(c => c.title || c.text),
+      savedAt: new Date().toISOString()
+    });
+    function setChips(box, inputId, list, cls){
+      document.querySelectorAll('#' + box + ' .tag-chip').forEach(c => c.remove());
+      const input = $r(inputId); if(!input) return;
+      list.forEach(t => { const chip = document.createElement('span'); chip.className = 'tag-chip ' + cls; chip.innerHTML = escR(t) + ' <button type="button"><i class="fa-solid fa-xmark"></i></button>'; chip.querySelector('button').addEventListener('click', () => chip.remove()); input.parentElement.insertBefore(chip, input); });
+    }
+    function applyResume(d){
+      Object.entries(d.fields || {}).forEach(([id, v]) => { if($r(id)) $r(id).value = v; });
+      setChips('softTagBox', 'softTagInput', d.soft || [], 'soft'); setChips('techTagBox', 'techTagInput', d.hard || [], '');
+      [['includeThesisToggle', d.thesisOn], ['includeCertsToggle', d.certsOn]].forEach(([id, on]) => { const t = $r(id); if(t){ t.checked = on !== false; t.dispatchEvent(new Event('change')); } });
+      const rows = $r('certRows'); if(rows){ rows.innerHTML = ''; (d.certs || []).forEach(c => { $r('addCertBtn').click(); [...rows.lastElementChild.querySelectorAll('input, select')].forEach((x, n) => { x.value = c[n] || x.value; }); }); }
+      langs().forEach((x, n) => { const v = (d.langs || [])[n]; if(v === undefined) return; if(x.type === 'checkbox') x.checked = v; else x.value = v; });
+      document.querySelectorAll('.custom-section-edit').forEach(c => c.remove());
+      (d.custom || []).forEach(c => { $r('addCustomSectionBtn').click(); const card = [...document.querySelectorAll('.custom-section-edit')].pop(); card.querySelector('.custom-title').value = c.title; card.querySelector('.custom-text').value = c.text; });
+    }
+    const saved = getJSON('ic_resume', {})[key] || {};
+    if(saved.savedAt) applyResume(saved);
+    else { if($r('ed-name') && me.name) $r('ed-name').value = me.name; if($r('ed-email') && me.email) $r('ed-email').value = me.email; }
+    const pdfInput = document.createElement('input'); pdfInput.type = 'file'; pdfInput.accept = 'application/pdf,.pdf'; pdfInput.hidden = true; pdfInput.id = 'resumePdfInput'; document.body.appendChild(pdfInput);
+    const showPdf = name => { const row = $r('uploadedPdfRow'); if(!row) return; row.classList.toggle('hidden', !name); row.classList.toggle('flex', !!name); if(name) row.querySelector('span').textContent = name; };
+    showPdf(saved.pdf || '');
+    $r('uploadResumePdfBtn')?.addEventListener('click', () => pdfInput.click());
+    pdfInput.addEventListener('change', () => { const f = pdfInput.files[0]; pdfInput.value = ''; if(!f) return; if(!/\.pdf$/i.test(f.name)) return toast('Upload a PDF file.', 'warn'); savePart({pdf: f.name}); showPdf(f.name); toast('Resume PDF attached.', 'success'); });
+    $r('uploadedPdfRow')?.querySelector('button')?.addEventListener('click', () => { savePart({pdf: ''}); showPdf(''); toast('Resume PDF removed.', 'info'); });
+    $r('saveSkillsBtn')?.addEventListener('click', () => {
+      const d = collect();
+      if(!d.hard.length) return toast('Add at least 1 hard skill.', 'warn');
+      savePart(d); renderResumePreview(); $r('saveSkillsMicrocopy')?.classList.remove('hidden'); toast('Saved. Your resume preview has been updated.', 'success');
+    });
     renderResumePreview();
   }
 
@@ -3522,11 +3697,11 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
 
   function renderHighlight(){
     const ta=document.getElementById('reportTextarea'), out=document.getElementById('highlightPreview'); if(!ta||!out)return;
-    const keywords=['tinulungan','tinest','nag-ayos','nag-attend','ginawa','natapos','nag-develop','na-fix','fixed','developed','assisted','tested','refactored','reviewed','nag-refactor','na-review','naayos','nag-log','nag-retest'];
+    const keywords=['assisted','tested','fixed','attended','developed','completed','implemented','refactored','reviewed','logged','retested','designed','created','built','debugged','documented','deployed','configured','updated','resolved','helped','learned'];
     const raw=ta.value||'';
     out.innerHTML=raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split('\n').map(line=>{
       const yes=keywords.some(k=>line.toLowerCase().includes(k));
-      return yes && line.trim() ? '<span class="highlight-mark">'+line+'</span>' : line;
+      if(!yes || !line.trim()) return line; const lead=line.match(/^\s*/)[0]; return lead+'<span class="highlight-mark">'+line.slice(lead.length)+'</span>';
     }).join('\n');
   }
   function initTaskDetail(){
@@ -3550,11 +3725,6 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
   }
 
   // ---------------- Jobs ----------------
-  const jobDetails={
-    'qa-brightpath':{title:'Junior QA & Documentation Intern',company:'Brightpath Software',score:'94% match',type:'Internship · Hybrid',location:'Dasmariñas, Cavite · 2.5 km away',salary:'₱3,500 / month OJT allowance',description:'Assist the QA team in testing software releases and maintaining internal documentation for ongoing projects.',requirements:['Currently enrolled in BS Computer Science or related program','Basic understanding of SQL and relational databases','Willing to work in a hybrid setup (2 days onsite per week)','Good written communication skills for documentation'],skills:[['SQL',true],['Documentation',true],['Agile',false]],deadline:'Application deadline: Oct 10, 2026'},
-    'fe-verano':{title:'Front-End Developer',company:'Verano Digital Studio',score:'81% match',type:'Full-time · Remote',location:'Remote · 5.8 km from campus',salary:'₱18,000 – ₱22,000 / month',description:'Build and maintain client-facing web interfaces, working closely with designers to implement responsive layouts.',requirements:['Graduate of BS Computer Science or related program','Proficient in HTML, CSS, and JavaScript','Familiarity with design tools (Figma or similar) is a plus','Can work independently in a remote setup'],skills:[['Canva',true],['Figma',false],['HTML/CSS',true]],deadline:'Application deadline: Oct 15, 2026'},
-    'fd-cavitegrand':{title:'Front Desk & Guest Relations Associate',company:'Cavite Grand Hotel',score:'73% match',type:'Part-time · Onsite',location:'Dasmariñas, Cavite · 3.1 km away',salary:'₱430 / day + meal allowance',description:'Handle guest check-in/check-out, respond to guest concerns, and support front office operations during shift hours.',requirements:['Currently enrolled in BS Hospitality Management','Pleasing personality and strong communication skills','Willing to work on a part-time shifting schedule, including weekends','Basic computer literacy (MS Office, booking systems)'],skills:[['Customer Service',true],['Events Coordination',false]],deadline:'Application deadline: Oct 5, 2026'}
-  };
 
   function filterJobs(){
     const list=document.getElementById('jobList'); if(!list)return;
@@ -3578,21 +3748,64 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     const j=jobDetails[id]; if(!j)return;
     const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
     set('jobModalTitle',j.title);set('jobModalCompany',j.company);set('jobModalType',j.type);set('jobModalSalary',j.salary);set('jobModalDescription',j.description);set('jobModalDeadline',j.deadline);
-    const score=document.getElementById('jobModalScore');if(score)score.innerHTML='<i class="fa-solid fa-wand-magic-sparkles mr-1"></i>'+j.score;
+    const score=document.getElementById('jobModalScore');if(score)score.innerHTML='<i class="fa-solid fa-wand-magic-sparkles mr-1"></i>'+jobMatch(j,session()||{}).score+'% match';
     const loc=document.getElementById('jobModalLocation');if(loc)loc.innerHTML='<i class="fa-solid fa-location-dot mr-1"></i>'+j.location;
     const req=document.getElementById('jobModalRequirements');if(req)req.innerHTML=j.requirements.map(x=>'<li>'+x+'</li>').join('');
-    const tags=document.getElementById('jobModalSkillTags');if(tags)tags.innerHTML=j.skills.map(([n,m])=>(m ? '<span class="tag-chip matched"><i class="fa-solid fa-check"></i>'+n+'</span>' : '<span class="tag-chip gap">'+n+' <span class="chip-note">gap</span></span>')).join('');
+    const tags=document.getElementById('jobModalSkillTags');if(tags)tags.innerHTML=jobMatch(j,session()||{}).skills.map(([n,m])=>(m ? '<span class="tag-chip matched"><i class="fa-solid fa-check"></i>'+n+'</span>' : '<span class="tag-chip gap">'+n+' <span class="chip-note">gap</span></span>')).join('');
     document.getElementById('jobModalApplyBtn')?.setAttribute('data-job',id);
+    const ab=document.getElementById('jobModalApplyBtn'); if(ab){ const done=jmApplied(id,session()||{}); ab.textContent=done?'Applied':'Apply Now'; ab.disabled=done; ab.classList.toggle('opacity-60',done); }
     show('jobModal');
   }
+  const chipHtml = (skills) => skills.map(([n,m]) => m ? '<span class="tag-chip matched"><i class="fa-solid fa-check"></i>'+esc(n)+'</span>' : '<span class="tag-chip gap">'+esc(n)+' <span class="chip-note">gap</span></span>').join('');
+  let jobSort = 'match';
+  function renderJobCards(){
+    const me = session() || {}, list = document.getElementById('jobList'); if(!list) return;
+    const cards = [...list.querySelectorAll('.job-card')];
+    cards.forEach(card => {
+      const j = jobDetails[card.dataset.job]; if(!j) return;
+      const m = jobMatch(j, me); card.dataset.score = m.score; card.dataset.km = parseFloat((j.location.match(/([\d.]+) km/) || [0, 0])[1]) || 0;
+      const badge = card.querySelector('.fa-wand-magic-sparkles')?.parentElement; if(badge) badge.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles mr-1"></i>' + m.score + '%';
+      const chips = card.querySelector('.tag-chip')?.parentElement; if(chips) chips.innerHTML = chipHtml(m.skills);
+      const btn = card.querySelector('.apply-btn'), done = jmApplied(card.dataset.job, me);
+      if(btn){ btn.textContent = done ? 'Applied' : 'Apply Now'; btn.disabled = done; btn.classList.toggle('opacity-60', done); btn.classList.toggle('cursor-default', done); }
+    });
+    cards.sort((x, y) => jobSort === 'distance' ? x.dataset.km - y.dataset.km : y.dataset.score - x.dataset.score).forEach(c => list.insertBefore(c, document.getElementById('fallbackAlert')));
+    const tbody = [...document.querySelectorAll('h2')].find(h => h.textContent.trim() === 'Application Status')?.closest('.bg-white')?.querySelector('tbody');
+    if(!tbody) return;
+    const apps = myJobApps(me).slice().reverse();
+    tbody.innerHTML = apps.length ? apps.map(a => { const st = jobAppStatus(a, me);
+      const badge = st === 'Submitted' ? '<span class="text-[11px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Submitted</span>' : st === 'Cancelled' ? '<span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">Cancelled</span>' : placementBadge(st);
+      return '<tr><td class="px-5 py-3 text-slate-700">' + esc(a.title) + '</td><td class="px-5 py-3 text-slate-600">' + esc(a.company) + '</td><td class="px-5 py-3 text-slate-500">' + formatDate(a.date) + '</td><td class="px-5 py-3">' + badge + '</td></tr>'; }).join('')
+      : '<tr><td colspan="4" class="px-5 py-6 text-center text-[12.5px] text-slate-400">No applications yet. Apply to a job above.</td></tr>';
+  }
+  async function applyJob(id){
+    const j = jobDetails[id], me = session() || {}; if(!j) return false;
+    if(jmApplied(id, me)){ toast('You already applied to this job.', 'info'); return false; }
+    const internship = isInternshipJob(j);
+    if(internship){
+      const p = placementList().find(x => x.name === me.name || (me.email && x.email === me.email));
+      if(p && !['Not placed', 'Withdrawn'].includes(p.status)){ toast('You already have an active OJT application' + (p.company ? ' with ' + p.company : '') + '. Only one at a time.', 'warn'); return false; }
+      if(!partnerCompanies().includes(j.company)){ toast(j.company + ' is not a partner company yet. Ask your coordinator.', 'warn'); return false; }
+      if(!await askConfirm('Apply to ' + j.company + ' as ' + j.title + '?\n\nThis records your OJT application and your coordinator will review it.')) return false;
+      savePlacement(me.name, {status: 'Applied', company: j.company, position: j.title, source: 'student', email: me.email, history: ((p || {}).history || []).concat({status: 'Applied', date: todayISO(), note: j.company + ' · ' + j.title + ' · by student via Job Matching'})});
+    }
+    const all = getJSON(JOB_APPS_KEY, {}), k = jmKey(me);
+    all[k] = (all[k] || []).filter(a => a.job !== id).concat({job: id, title: j.title, company: j.company, date: todayISO(), internship, name: me.name, email: me.email, program: me.program});
+    localStorage.setItem(JOB_APPS_KEY, JSON.stringify(all));
+    toast(internship ? 'Application to ' + j.company + ' recorded. Your coordinator will review it.' : 'Application submitted to ' + j.company + '.', 'success');
+    renderJobCards(); return true;
+  }
   function initJobs(){
+    renderJobList();
     document.getElementById('courseFilter')?.addEventListener('change',filterJobs);
     document.getElementById('typeFilter')?.addEventListener('change',filterJobs);
     document.getElementById('arrangementFilter')?.addEventListener('change',filterJobs);
     document.querySelectorAll('.job-card').forEach(card=>card.addEventListener('click',e=>{if(e.target.closest('.apply-btn'))return;openJobModal(card.dataset.job);}));
-    document.querySelectorAll('.apply-btn').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const id=btn.closest('.job-card')?.dataset.job;const j=jobDetails[id];toast('Application submitted to '+(j?.company||'the employer')+'.','success');}));
+    document.querySelectorAll('.apply-btn').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();applyJob(btn.closest('.job-card')?.dataset.job);}));
+    document.querySelectorAll('.sort-btn').forEach(btn=>btn.addEventListener('click',()=>{jobSort=btn.dataset.sort;document.querySelectorAll('.sort-btn').forEach(b=>{const on=b===btn;b.classList.toggle('active',on);['bg-slate-900','text-white'].forEach(c=>b.classList.toggle(c,on));['bg-white','border','border-slate-200','text-slate-600'].forEach(c=>b.classList.toggle(c,!on));});renderJobCards();}));
     document.getElementById('closeJobModalBtn')?.addEventListener('click',()=>hide('jobModal'));
-    document.getElementById('jobModalApplyBtn')?.addEventListener('click',()=>{const id=document.getElementById('jobModalApplyBtn').dataset.job; const j=jobDetails[id]; toast('Application submitted to '+(j?.company||'the employer')+'.','success');hide('jobModal');});
+    document.getElementById('jobModalApplyBtn')?.addEventListener('click',()=>{applyJob(document.getElementById('jobModalApplyBtn').dataset.job).then(ok=>{if(ok) hide('jobModal');});});
+    renderJobCards();
     filterJobs();
   }
 
@@ -3626,7 +3839,7 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     document.getElementById('alumniPendingBadge')?.addEventListener('click',()=>toast('Your Alumni status request is waiting for coordinator approval.','info'));
     document.getElementById('cancelAlumniRequestBtn')?.addEventListener('click',closeAlumniModal);
     document.getElementById('sendAlumniRequestBtn')?.addEventListener('click',sendAlumniRequest);
-    document.getElementById('logoutBtn')?.addEventListener('click',()=>{localStorage.removeItem('ic_session');sessionStorage.setItem('pendingToast',JSON.stringify({message:'You have been logged out.',type:'info'}));window.location.href=studentPageMap.login;});
+    document.getElementById('logoutBtn')?.addEventListener('click',async ()=>{if(!await askConfirm('Log out of InternConnect?'))return;localStorage.removeItem('ic_session');sessionStorage.setItem('pendingToast',JSON.stringify({message:'You have been logged out.',type:'info'}));window.location.href=studentPageMap.login;});
 
     // Common mobile sidebar
     const sidebar=document.getElementById('sidebar'),overlay=document.getElementById('overlay'),mobile=document.getElementById('mobileToggle'),close=document.getElementById('mobileCloseBtn');
@@ -3659,6 +3872,56 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
   window.addEventListener('beforeunload',stopAttendanceCamera);
 })();
 
+
+/* ============ Job Matching: scores come from the saved Resume Builder skills, applications live in ic_job_apps ============ */
+const JOB_SEED={
+    'qa-brightpath':{course:'BSCS',title:'Junior QA & Documentation Intern',company:'Brightpath Software',score:'94% match',type:'Internship · Hybrid',location:'Dasmariñas, Cavite · 2.5 km away',salary:'₱3,500 / month OJT allowance',description:'Assist the QA team in testing software releases and maintaining internal documentation for ongoing projects.',requirements:['Currently enrolled in BS Computer Science or related program','Basic understanding of SQL and relational databases','Willing to work in a hybrid setup (2 days onsite per week)','Good written communication skills for documentation'],skills:[['SQL',true],['Documentation',true],['Agile',false]],deadline:'Application deadline: Oct 10, 2026'},
+    'fe-verano':{course:'BSCS',title:'Front-End Developer',company:'Verano Digital Studio',score:'81% match',type:'Full-time · Remote',location:'Remote · 5.8 km from campus',salary:'₱18,000 – ₱22,000 / month',description:'Build and maintain client-facing web interfaces, working closely with designers to implement responsive layouts.',requirements:['Graduate of BS Computer Science or related program','Proficient in HTML, CSS, and JavaScript','Familiarity with design tools (Figma or similar) is a plus','Can work independently in a remote setup'],skills:[['Canva',true],['Figma',false],['HTML/CSS',true]],deadline:'Application deadline: Oct 15, 2026'},
+    'fd-cavitegrand':{course:'BSHM',title:'Front Desk & Guest Relations Associate',company:'Cavite Grand Hotel',score:'73% match',type:'Part-time · Onsite',location:'Dasmariñas, Cavite · 3.1 km away',salary:'₱430 / day + meal allowance',description:'Handle guest check-in/check-out, respond to guest concerns, and support front office operations during shift hours.',requirements:['Currently enrolled in BS Hospitality Management','Pleasing personality and strong communication skills','Willing to work on a part-time shifting schedule, including weekends','Basic computer literacy (MS Office, booking systems)'],skills:[['Customer Service',true],['Events Coordination',false]],deadline:'Application deadline: Oct 5, 2026'}
+};
+// Partners post jobs (ic_postings); the samples above are starting postings their company can edit or close
+const POSTINGS_KEY = 'ic_postings';
+function allPostings(){
+    const out = {};
+    Object.keys(JOB_SEED).forEach(id => { out[id] = Object.assign({id, status: 'open', postedAt: '2026-09-15'}, JOB_SEED[id]); });
+    Object.entries(getJSON(POSTINGS_KEY, {})).forEach(([id, p]) => { out[id] = Object.assign({}, out[id] || {}, p, {id}); });
+    return out;
+}
+const jobDetails = Object.fromEntries(Object.entries(allPostings()).filter(([, j]) => j.status !== 'closed'));
+function jobCardHtml(id, j){
+    const [kind, arrangement] = j.type.split(' · ');
+    return '<div class="job-card bg-white rounded-xl border border-slate-200 shadow-sm p-4 hover:border-sky-300 transition cursor-pointer" data-arrangement="' + esc(arrangement || '') + '" data-course="' + esc(j.course) + '" data-job="' + esc(id) + '" data-type="' + esc(kind) + '">'
+      + '<div class="flex items-start justify-between gap-3"><div><div class="font-semibold text-slate-900">' + esc(j.title) + '</div>'
+      + '<div class="text-[12px] text-slate-500 mt-0.5">' + esc(j.company) + ' · <i class="fa-solid fa-location-dot text-[10px]"></i> ' + esc(j.location) + ' · <span class="text-slate-400">' + esc(j.course) + ' · ' + esc(j.type) + '</span></div></div>'
+      + '<span class="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200 flex-shrink-0"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>0%</span></div>'
+      + '<div class="flex flex-wrap gap-1.5 mt-3"><span class="tag-chip"></span></div>'
+      + '<button class="apply-btn mt-3 text-[12.5px] font-semibold text-white bg-sky-600 hover:bg-sky-700 px-3.5 py-2 rounded-md transition">Apply Now</button></div>';
+}
+function renderJobList(){
+    const list = document.getElementById('jobList'); if(!list) return;
+    list.querySelectorAll('.job-card').forEach(c => c.remove());
+    list.insertAdjacentHTML('afterbegin', Object.entries(jobDetails).map(([id, j]) => jobCardHtml(id, j)).join(''));
+}
+const JOB_APPS_KEY = 'ic_job_apps';
+const PROGRAM_COURSE = {'BS Computer Science': 'BSCS', 'BS Hospitality Management': 'BSHM', 'BS Business Administration': 'BSBA'};
+const JM_DEFAULT_SKILLS = ['Communication', 'Python', 'SQL', 'Canva'];
+const jmKey = (me) => ((me || {}).email || (me || {}).name || '').toLowerCase();
+const isInternshipJob = (job) => /^Internship/.test(job.type);
+const JOB_OPEN = ['Submitted', 'Applied', 'Endorsed', 'Accepted'];
+function jmSkills(me){ const r = getJSON('ic_resume', {})[jmKey(me)]; return (r && r.savedAt ? (r.soft || []).concat(r.hard || []) : JM_DEFAULT_SKILLS).map(x => x.toLowerCase()); }
+// 40% course fit + 60% share of the job's skills found in the student's resume
+function jobMatch(job, me){
+    const have = jmSkills(me), skills = job.skills.map(([n]) => [n, have.includes(n.toLowerCase())]);
+    const courseOk = job.course === (PROGRAM_COURSE[(me || {}).program] || 'BSCS');
+    return {score: Math.round((courseOk ? 40 : 0) + 60 * skills.filter(x => x[1]).length / (skills.length || 1)), skills, courseOk};
+}
+function myJobApps(me){ return getJSON(JOB_APPS_KEY, {})[jmKey(me)] || []; }
+function jobAppStatus(a, me){
+    if(!a.internship) return 'Submitted';
+    const p = placementList().find(x => x.name === me.name || (me.email && x.email === me.email));
+    return p && p.company === a.company && p.status !== 'Not placed' ? p.status : 'Cancelled';
+}
+const jmApplied = (id, me) => myJobApps(me).some(a => a.job === id && !['Cancelled', 'Withdrawn'].includes(jobAppStatus(a, me)));
 
 /* ============ Student side: placement, classwork, files, attendance (uses the coordinator data) ============ */
 if(document.body.dataset.role === 'student') document.addEventListener('DOMContentLoaded', () => {
@@ -3717,11 +3980,13 @@ if(document.body.dataset.role === 'student') document.addEventListener('DOMConte
         const stats = ov.querySelectorAll('.grid.grid-cols-2 > div');
         if(stats[0]){ const pct = Math.min(100, Math.round((p.hours || 0) / REQUIRED_HOURS * 100)); stats[0].querySelector('.text-lg').innerHTML = (p.hours || 0) + ' <span class="text-[12px] font-medium text-slate-400">/ ' + REQUIRED_HOURS + ' hrs</span>'; stats[0].querySelector('.bg-sky-600').style.width = pct + '%'; }
         if(stats[1]) stats[1].querySelector('.text-2xl').textContent = myTasks().filter(t => t.status === 'open' && !['Pending Review', 'Verified'].includes(mySub(t.id).status)).length;
+        if(stats[2]){ const open = myJobApps(me).filter(a => JOB_OPEN.includes(jobAppStatus(a, me))); stats[2].querySelector('.text-2xl').textContent = open.length + (['Applied', 'Endorsed', 'Accepted'].includes(p.status) && !open.some(a => a.company === p.company) ? 1 : 0); }
+        if(stats[3]){ const scores = Object.values(jobDetails).filter(j => isInternshipJob(j) !== (me.status === 'alumni')).map(j => jobMatch(j, me).score); stats[3].querySelector('.text-2xl').textContent = (scores.length ? Math.max(...scores) : 0) + '%'; }
         renderNotifs();
     }
     if(ov){
         renderStudentOverview();
-        ov.addEventListener('click', (e) => {
+        ov.addEventListener('click', async (e) => {
             const p = mine();
             if(e.target.closest('#stApplyBtn')){
                 const company = document.getElementById('stApplyCompany').value, position = document.getElementById('stApplyPosition').value.trim(), date = document.getElementById('stApplyDate').value || todayISO();
@@ -3729,12 +3994,12 @@ if(document.body.dataset.role === 'student') document.addEventListener('DOMConte
                 showToast('Application to ' + esc(company) + ' recorded. Your coordinator will review it.', 'success');
             }
             if(e.target.closest('#stCancelApply')){
-                if(!confirm('Cancel your application to ' + p.company + '?')) return;
+                if(!await askConfirm('Cancel your application to ' + p.company + '?')) return;
                 savePlacement(p.name, {status: 'Not placed', company: '', position: '', source: '', history: (p.history || []).concat({status: 'Not placed', date: todayISO(), note: 'Application cancelled by student'})});
                 showToast('Application cancelled.', 'warn');
             }
             if(e.target.closest('#stDeleteReq')){
-                if(!confirm('Request deletion of your profile, resume and job-matching data?')) return;
+                if(!await askConfirm('Request deletion of your profile, resume and job-matching data?')) return;
                 const all = getDeletionRequests().concat({name: p.name, classCode: me.classCode || SEED_CODE, requestedAt: todayISO(), status: 'pending', completedAt: alumniCompletedAt(p)});
                 localStorage.setItem(DELETION_KEY, JSON.stringify(all));
                 showToast('Deletion request sent to your coordinator.', 'success');
@@ -3818,6 +4083,12 @@ if(document.body.dataset.role === 'student') document.addEventListener('DOMConte
                 text: 'Your <strong>' + esc(taskInfo(id).title) + '</strong> was ' + ({'Verified': 'verified and added to your resume', 'Needs Revision': 'returned for revision', 'Rejected': 'rejected'})[x.status] + (x.feedback ? ': “' + esc(x.feedback) + '”' : '')});
         });
         myTasks().filter(t => t.status === 'open' && !mySub(t.id).status).forEach(t => items.push({date: t.dueDate, icon: 'fa-file-lines', tone: 'bg-indigo-50 text-indigo-500', text: '<strong>' + esc(t.title) + '</strong> is due ' + formatDate(t.dueDate)}));
+        const DAY_RESULT = {accepted: 'accepted', rejected: 'rejected', excused: 'excused', unexcused: 'kept as absent'};
+        if(['Deployed', 'Hours complete', 'Completed'].includes(p.status)) internAttendance(p).filter(r => ['Flagged', 'Absent'].includes(r.status) && (r.review ? r.note : !r.note)).slice(0, 3).forEach(r => {
+            const link = '<a href="../student/day-log.html?date=' + r.date + '" class="text-sky-600 font-semibold hover:underline">';
+            if(r.review && r.note) items.push({date: r.date, icon: 'fa-comment-dots', tone: 'bg-sky-50 text-sky-600', text: 'Your coordinator ' + DAY_RESULT[r.review] + ' your ' + (r.status === 'Absent' ? 'absence' : 'flagged clock-in') + ' on ' + link + formatDate(r.date) + '</a>'});
+            else if(!r.review && !r.note) items.push({date: r.date, icon: 'fa-comment-dots', tone: 'bg-amber-50 text-amber-500', text: '<strong>' + r.status + '</strong> on ' + formatDate(r.date) + '. ' + link + 'Explain this day</a>'});
+        });
         const today = liveRecs(me.name)[todayISO()];
         if(today) items.push({date: todayISO(), icon: 'fa-location-dot', tone: 'bg-emerald-50 text-emerald-500', text: 'You timed in at ' + fmtClock(today.in) + (today.out != null ? ' and out at ' + fmtClock(today.out) : '')});
         const del = p.status === 'Completed' ? getDeletionRequests().find(r => r.name === me.name) : null;
@@ -3841,13 +4112,48 @@ if(document.body.dataset.role === 'student') document.addEventListener('DOMConte
         set('dayLogDate', new Date(date + 'T00:00:00').toLocaleDateString('en-US', {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}));
         const box = document.querySelector('#tab-daylog .h-40'), loc = document.querySelector('#tab-daylog .space-y-2 > div:nth-child(4) span:last-child');
         const off = !r || r.status === 'Absent' || r.status === 'Holiday';
-        if(box && !off) box.innerHTML = '<img src="' + clockPhoto(p, r, 'in') + '" alt="Clock-in photo" class="h-full rounded-md"><img src="' + clockPhoto(p, r, 'out') + '" alt="Clock-out photo" class="h-full rounded-md ml-2">';
+        if(box && !off) box.innerHTML = '<img src="' + clockPhoto(p, r, 'in') + '" alt="Time in photo" class="h-full rounded-md">';
         set('dlIn', off ? '—' : fmtClock(r.timeIn));
         set('dlOut', off ? '—' : fmtClock(r.timeOut));
         set('dlHours', !r || r.status === 'Holiday' ? '—' : r.hours + ' hrs' + (r.review === 'rejected' ? ' (not counted)' : ''));
-        if(loc) loc.innerHTML = !r ? '—' : r.status === 'Holiday' ? esc(r.place) : off ? '—' : '📍 ' + esc(r.place) + (r.dist != null ? ' · ' + r.dist + ' m from site' : '') + (r.lat ? '<div class="text-[11px] text-slate-400 text-right">' + r.lat + ', ' + r.lng + '</div>' : '');
+        if(loc) loc.innerHTML = !r ? '—' : r.status === 'Holiday' ? esc(r.place) : off ? '—' : '<i class="fa-solid fa-location-dot text-slate-400 mr-1"></i>' + esc(r.place) + (r.dist != null ? ' · ' + r.dist + ' m from site' : '') + (r.lat ? '<div class="text-[11px] text-slate-400 text-right">' + r.lat + ', ' + r.lng + '</div>' : '');
         const dl = document.getElementById('dlStatus');
         if(dl){ dl.textContent = r ? r.status + (r.review ? ' · ' + r.review : '') : 'No record'; dl.className = 'text-[11px] font-semibold border px-2 py-0.5 rounded-full ' + (r ? ATT_BADGE[r.status] : 'text-slate-500 bg-slate-50 border-slate-200'); }
+        renderDayExplain(p, r);
+    }
+
+    // ---- Explain a flagged, late or absent day ----
+    function renderDayExplain(p, r){
+        const card = document.querySelector('#tab-daylog .max-w-lg');
+        document.getElementById('dayExplain')?.remove();
+        if(!card || !r || !['Flagged', 'Absent', 'Late'].includes(r.status)) return;
+        const box = '<div id="dayExplain" class="mt-4 pt-4 border-t border-slate-100">';
+        const DONE = {accepted: ['text-emerald-700', 'Your coordinator accepted this clock-in.'], rejected: ['text-red-600', 'Your coordinator rejected this clock-in. Its hours are not counted.'],
+            excused: ['text-emerald-700', 'Your coordinator excused this absence.'], unexcused: ['text-slate-600', 'Your coordinator kept this day as absent.']};
+        const quote = r.note ? '<div class="text-[12px] text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-3 py-2"><strong>' + esc(r.note.type) + ':</strong> ' + esc(r.note.reason) + '<div class="text-[10.5px] text-slate-400 mt-1">Sent ' + formatDate(r.note.at) + '</div></div>' : '';
+        if(r.review && DONE[r.review]){
+            card.insertAdjacentHTML('beforeend', box + '<div class="text-[11px] uppercase tracking-wide font-semibold text-slate-400 mb-2">Your explanation</div>' + (quote || '<div class="text-[12px] text-slate-400">You did not send an explanation.</div>')
+                + '<div class="text-[12px] font-semibold mt-2 ' + DONE[r.review][0] + '">' + DONE[r.review][1] + '</div></div>');
+            return;
+        }
+        const why = {Flagged: 'Your clock-in was outside the ' + (r.radius || GEOFENCE_M) + ' m geofence.', Absent: 'There is no clock-in for this scheduled day.', Late: 'You clocked in after your grace period.'}[r.status];
+        const field = 'w-full border border-slate-300 rounded-md px-3 py-2 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-sky-400';
+        card.insertAdjacentHTML('beforeend', box
+            + '<div class="text-[13px] font-semibold text-slate-800">' + (r.note ? 'Your explanation' : 'Explain this day') + '</div>'
+            + '<div class="text-[11.5px] text-slate-500 mb-2">' + why + ' Your coordinator sees this before reviewing it.</div>'
+            + (r.note ? '<div class="mb-2">' + quote + '</div>' : '')
+            + '<select id="explainType" class="' + field + ' mb-2">' + ATT_REASONS.map(x => '<option' + (r.note && r.note.type === x ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select>'
+            + '<textarea id="explainText" rows="3" maxlength="300" placeholder="e.g. Sent by my supervisor to install the POS at the Molino branch" class="' + field + '">' + (r.note ? esc(r.note.reason) : '') + '</textarea>'
+            + '<div class="flex justify-end mt-2"><button id="explainSend" class="text-[12.5px] font-semibold text-white bg-sky-600 hover:bg-sky-700 px-3.5 py-2 rounded-md transition">' + (r.note ? 'Update explanation' : 'Send to coordinator') + '</button></div></div>');
+        document.getElementById('explainSend').onclick = () => {
+            const reason = document.getElementById('explainText').value.trim();
+            if(reason.length < 5) return showToast('Write a short explanation first.', 'warn');
+            const all = getJSON(ATT_NOTES_KEY, {});
+            all[p.name + '|' + r.date] = {type: document.getElementById('explainType').value, reason, at: todayISO()};
+            localStorage.setItem(ATT_NOTES_KEY, JSON.stringify(all));
+            showToast('Explanation sent to your coordinator.', 'success');
+            renderDayExplain(p, internAttendance(p).find(x => x.date === r.date));
+        };
     }
 
     // ---- Today's time in / out state ----
@@ -3995,3 +4301,260 @@ function openSiteModal(company){
     openModal(m);
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('.site-edit-btn'); if(b) openSiteModal(b.dataset.company); });
+
+
+/* ============ Partner & MOA Directory: cards from the partner list, Add partner (no account), edit, remove ============ */
+function monthYear(iso){ return new Date(iso + 'T00:00').toLocaleDateString('en-US', {month: 'short', year: 'numeric'}); }
+function renderPartnerGrid(){
+    const grid = document.getElementById('partnerGrid');
+    if(grid){
+        const placed = placementList();
+        grid.innerHTML = partnerCompanies().map(c => {
+            const info = partnerInfo(c), [label, tone] = moaStatus(info.moaUntil), e = esc(c);
+            const deployed = placed.filter(p => p.company === c && ['Deployed', 'Hours complete'].includes(p.status)).length;
+            const inProcess = placed.filter(p => p.company === c && ['Applied', 'Endorsed', 'Accepted'].includes(p.status)).length;
+            const moaScan = ensureVault(c).files.some(f => f.type === 'MOA / MOU');
+            return '<div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col">'
+              + '<div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="font-semibold text-slate-900">' + e + '</div><div class="text-[12px] text-slate-500 mt-0.5">' + esc(info.industry || 'Industry not set') + '</div></div>'
+              + '<span class="text-[11px] font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap ' + tone + '">' + label + '</span></div>'
+              + '<div class="text-[12px] text-slate-500 mt-3">' + (info.moaUntil ? (label === 'Expired' ? 'MOA expired ' : 'MOA valid until ') + '<strong class="text-slate-700">' + monthYear(info.moaUntil) + '</strong>' : 'No MOA date yet') + ' · '
+              + (moaScan ? '<span class="text-emerald-700"><i class="fa-solid fa-check text-[10px] mr-0.5"></i>MOA scan in vault</span>' : '<span class="text-amber-600">No MOA scan in vault yet</span>') + '</div>'
+              + '<div class="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-100 text-[12.5px]"><span class="text-slate-600"><i class="fa-solid fa-users mr-1.5 text-slate-400"></i>' + deployed + ' intern' + (deployed === 1 ? '' : 's') + ' deployed' + (inProcess ? ' · ' + inProcess + ' in process' : '') + '</span>'
+              + '<span class="text-slate-400">' + (info.hr ? 'HR: ' + esc(info.hr) : 'No HR contact') + '</span></div>'
+              + '<div class="mt-2 text-[11px] ' + (info.accounts.length ? 'text-sky-700' : 'text-slate-400') + '"><i class="fa-solid ' + (info.accounts.length ? 'fa-circle-check' : 'fa-user-slash') + ' mr-1"></i>'
+              + (info.accounts.length ? 'Uses InternConnect · ' + esc(info.accounts.map(a => a.email).join(', ')) : 'No partner account · you manage its records') + '</div>'
+              + '<div class="flex gap-3 mt-2 text-[11.5px] font-semibold"><button class="partner-edit-btn text-sky-600 hover:text-sky-700" data-company="' + e + '"><i class="fa-solid fa-pen mr-1"></i>Edit details</button>'
+              + (info.removable && !deployed && !inProcess ? '<button class="partner-remove-btn text-red-600 hover:text-red-700" data-company="' + e + '"><i class="fa-solid fa-trash mr-1"></i>Remove</button>' : '') + '</div>'
+              + '<button class="open-vault-btn mt-3 w-full text-[12px] font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-3 py-2 rounded-md transition" data-company="' + e + '"><i class="fa-solid fa-vault mr-1.5"></i>Open Vault</button></div>';
+        }).join('') || '<div class="md:col-span-2 bg-white rounded-xl border border-dashed border-slate-300 p-8 text-center text-[12.5px] text-slate-500">No partner companies in this batch yet.<br>Add one, or approve a partner company request on the Requests page.</div>';
+    }
+    renderSiteLines();
+}
+function openPartnerModal(company){
+    let m = document.getElementById('partnerModal');
+    const field = 'w-full border border-slate-300 rounded-md px-3 py-2 text-[13px] bg-white focus:outline-none focus:ring-2 focus:ring-sky-400 mb-3';
+    const label = (id, t) => '<label class="text-[12.5px] font-medium text-slate-600 block mb-1" for="' + id + '">' + t + '</label>';
+    if(!m){
+        document.body.insertAdjacentHTML('beforeend', '<div id="partnerModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center p-4"><div class="bg-white rounded-xl w-full max-w-md p-6 shadow-xl">'
+          + '<div class="flex items-center justify-between mb-1"><h3 id="pmTitle" class="font-bold text-slate-900">Add partner</h3><button data-pm="close" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button></div>'
+          + '<p class="text-[12px] text-slate-500 mb-4">For partners that will not use InternConnect. Partners that sign up are added here once you approve them in Requests.</p>'
+          + label('pmName', 'Company name') + '<input id="pmName" class="' + field + '" placeholder="ex. Tech Solutions Inc.">'
+          + label('pmIndustry', 'Industry') + '<input id="pmIndustry" class="' + field + '" placeholder="ex. Software Development">'
+          + label('pmHr', 'HR / supervisor contact') + '<input id="pmHr" class="' + field + '" placeholder="ex. Ms. Ana Reyes · ana@company.com">'
+          + label('pmMoa', 'MOA valid until') + '<input id="pmMoa" type="date" class="' + field + '">'
+          + '<p class="text-[11px] text-slate-400">Keep the signed MOA scan in the vault\'s Agreements folder. Renew by changing the date after the new MOA is signed.</p>'
+          + '<div class="flex justify-end gap-2.5 mt-5"><button data-pm="close" class="text-[12.5px] font-medium text-slate-500 hover:text-slate-700 px-3.5 py-2">Cancel</button><button data-pm="save" class="text-[12.5px] font-semibold text-white bg-sky-600 hover:bg-sky-700 px-4 py-2 rounded-md">Save</button></div></div></div>');
+        m = document.getElementById('partnerModal');
+        m.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-pm]'); if(!b) return;
+            if(b.dataset.pm === 'close') return closeModal(m);
+            const val = (id) => document.getElementById(id).value.trim(), name = m._company || val('pmName');
+            if(!name) return showToast('Type the company name.', 'warn');
+            if(!m._company && partnerCompanies().some(n => n.toLowerCase() === name.toLowerCase())) return showToast(name + ' is already in the directory.', 'warn');
+            const all = getJSON(PARTNERS_KEY, {});
+            all[name] = Object.assign(all[name] || {}, {industry: val('pmIndustry'), hr: val('pmHr'), moaUntil: val('pmMoa')}, m._company ? {} : {addedBy: 'coordinator', addedAt: todayISO(), classCode: activeClassCode()});
+            localStorage.setItem(PARTNERS_KEY, JSON.stringify(all));
+            logAudit(m._company ? 'Updated the details of ' + name + (val('pmMoa') ? ' · MOA valid until ' + val('pmMoa') : '') : 'Added partner company ' + name + ' (no partner account)');
+            closeModal(m);
+            renderPartnerGrid();
+            showToast(m._company ? 'Partner details saved.' : name + ' added. Students can now apply to it.', 'success');
+        });
+    }
+    const info = company ? partnerInfo(company) : {};
+    m._company = company || '';
+    document.getElementById('pmTitle').textContent = company ? 'Edit partner details' : 'Add partner';
+    document.getElementById('pmName').value = company || '';
+    document.getElementById('pmName').disabled = !!company;
+    document.getElementById('pmIndustry').value = info.industry || '';
+    document.getElementById('pmHr').value = info.hr || '';
+    document.getElementById('pmMoa').value = info.moaUntil || '';
+    openModal(m);
+}
+document.addEventListener('click', async (e) => {
+    const b = e.target.closest('.open-vault-btn, .partner-edit-btn, .partner-remove-btn, #addPartnerBtn');
+    if(!b) return;
+    if(b.id === 'addPartnerBtn') return openPartnerModal('');
+    const c = b.dataset.company;
+    if(b.classList.contains('open-vault-btn')) return openVault(c);
+    if(b.classList.contains('partner-edit-btn')) return openPartnerModal(c);
+    if(!await askConfirm('Remove ' + c + ' from the directory? Its vault is kept.')) return;
+    const all = getJSON(PARTNERS_KEY, {}); delete all[c]; localStorage.setItem(PARTNERS_KEY, JSON.stringify(all));
+    logAudit('Removed partner company ' + c + ' from the directory');
+    renderPartnerGrid();
+    showToast(c + ' removed.', 'info');
+});
+
+
+/* ============ Partner Company portal (optional: the coordinator can still do all of this) ============ */
+// Students who applied to a posting, ranked by compatibility (same score the student sees in Job Matching)
+function applicantsOf(job){
+    const users = getUsers(), out = [];
+    Object.entries(getJSON(JOB_APPS_KEY, {})).forEach(([key, apps]) => apps.filter(a => a.job === job.id).forEach(a => {
+        const u = users.find(x => (x.email || '').toLowerCase() === key || (x.name || '').toLowerCase() === key) || {};
+        const who = {email: a.email || u.email || key, name: a.name || u.name || key, program: a.program || u.program || 'BS Computer Science'};
+        const status = jobAppStatus(a, who);
+        if(['Cancelled', 'Withdrawn', 'Not placed'].includes(status)) return;
+        out.push({key, who, app: a, status, match: jobMatch(job, Object.assign({}, who, {email: key}))});
+    }));
+    return out.sort((x, y) => y.match.score - x.match.score);
+}
+// Resume shown to the partner: self-declared (Resume Builder); jobs also get the system-generated Verified entries
+function resumeHtml(key, name, withVerified){
+    const r = getJSON('ic_resume', {})[key] || {}, f = r.fields || {};
+    const sec = (t, body) => body ? '<div class="py-2.5"><div class="text-[10.5px] font-semibold uppercase tracking-wide text-slate-400 mb-1">' + t + '</div>' + body + '</div>' : '';
+    const text = (v) => v ? '<p class="text-[12.5px] text-slate-700 whitespace-pre-line">' + esc(v) + '</p>' : '';
+    const chips = (l) => (l || []).length ? '<div class="flex flex-wrap gap-1.5">' + l.map(x => '<span class="tag-chip">' + esc(x) + '</span>').join('') + '</div>' : '';
+    let html = '<div class="text-[11px] font-semibold text-slate-600 bg-slate-100 inline-block px-2 py-0.5 rounded-full mb-1">Self-declared</div>'
+      + '<div class="font-semibold text-slate-900">' + esc(f['ed-name'] || name) + '</div><div class="text-[12px] text-slate-500">' + esc([f['ed-email'], f['ed-phone']].filter(Boolean).join(' · ')) + '</div>'
+      + (r.savedAt ? '' : '<p class="text-[12px] text-amber-600 mt-2">This student has not saved a resume yet.</p>')
+      + '<div class="divide-y divide-slate-100">' + sec('Objective', text(f['ed-objective'])) + sec('Soft skills', chips(r.soft)) + sec('Technical skills', chips(r.hard))
+      + sec('Education', text(f['ed-education'])) + sec('Work experience', text(f['ed-workexp']))
+      + sec('Thesis / project', r.thesisOn ? text([f['ed-thesisTitle'], f['ed-thesisRole']].filter(Boolean).join(' · ')) : '')
+      + sec('Certifications', r.certsOn ? text((r.certs || []).map(c => c.filter(Boolean).join(' · ')).join('\n')) : '')
+      + sec('Volunteer work', text(f['ed-volunteer'])) + sec('Awards', text(f['ed-awards']))
+      + (r.custom || []).map(c => sec(esc(c.title || 'Other'), text(c.text))).join('') + '</div>';
+    if(withVerified){
+        const ver = allTaskIds().flatMap(id => taskSubmissions(id).filter(x => x.name === name && x.status === 'Verified' && x.bullet).map(x => [taskInfo(id).title, x.bullet]));
+        html += '<div class="mt-3 border-t border-slate-200 pt-3"><div class="text-[11px] font-semibold text-emerald-700 bg-emerald-50 inline-block px-2 py-0.5 rounded-full mb-2"><i class="fa-solid fa-circle-check mr-1"></i>System-generated · verified by the OJT coordinator</div>'
+          + (ver.length ? ver.map(([t, b]) => '<div class="flex justify-between gap-3 text-[12.5px] text-slate-700 py-1"><p>' + esc(b) + '</p><span class="text-[10.5px] text-slate-400 whitespace-nowrap">' + esc(t) + '</span></div>').join('') : '<p class="text-[12px] text-slate-400">No verified OJT entries.</p>') + '</div>';
+    }
+    return html;
+}
+if(document.body.dataset.ppage) (function(){
+    const me = getJSON('ic_session', {}) || {};
+    if(me.role !== 'partnercompany') return;
+    const company = me.company || '', page = document.body.dataset.ppage.replace(/^p/, ''), params = new URLSearchParams(window.location.search);
+    const placed = () => placementList().filter(p => p.company === company);
+    const myPosts = () => Object.values(allPostings()).filter(j => j.company === company);
+    const card = 'bg-white rounded-xl border border-slate-200 shadow-sm';
+    const btn = 'text-[11.5px] font-semibold px-2.5 py-1 rounded-md transition ';
+    let modal = document.getElementById('pModal');
+    if(!modal){
+        document.body.insertAdjacentHTML('beforeend', '<div id="pModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center p-4"><div class="bg-white rounded-xl w-full max-w-lg p-6 shadow-xl max-h-[90vh] overflow-y-auto">'
+          + '<div class="flex items-center justify-between mb-3"><h3 id="pModalTitle" class="font-bold text-slate-900"></h3><button data-pclose class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button></div><div id="pModalBody"></div></div></div>');
+        modal = document.getElementById('pModal');
+        modal.addEventListener('click', (e) => { if(e.target.closest('[data-pclose]')) closeModal(modal); });
+    }
+    const showModal = (title, body) => { document.getElementById('pModalTitle').textContent = title; document.getElementById('pModalBody').innerHTML = body; openModal(modal); };
+    document.addEventListener('click', (e) => {
+        const r = e.target.closest('[data-resume]'); if(!r) return;
+        showModal('Resume · ' + r.dataset.name, resumeHtml(r.dataset.resume, r.dataset.name, r.dataset.verified === '1'));
+    });
+
+    function needsAction(){
+        const items = [], vault = ensureVault(company), vlink = (n) => pages.pvault + '?intern=' + encodeURIComponent(n);
+        placed().forEach(p => {
+            if(p.status === 'Endorsed' && !hasDoc(company, p.name, 'Acceptance letter')) items.push({icon: 'fa-file-signature', text: 'Upload the signed acceptance letter of <strong>' + esc(p.name) + '</strong>', href: vlink(p.name)});
+            if(p.status === 'Hours complete' && !hasDoc(company, p.name, 'Supervisor evaluation')) items.push({icon: 'fa-clipboard-check', text: '<strong>' + esc(p.name) + '</strong> finished the required hours. Upload the signed supervisor evaluation', href: vlink(p.name)});
+        });
+        vault.files.filter(f => f.pending && f.owner === 'hr' && (f.pendingBy || 'coordinator') !== 'hr').forEach(f => items.push({icon: 'fa-lock-open', text: 'The coordinator asks to ' + f.pending + ' <strong>' + esc(f.name) + '</strong>', href: pages.pvault}));
+        myPosts().filter(j => j.status !== 'closed').forEach(j => { const n = applicantsOf(j).length; if(n) items.push({icon: 'fa-user-plus', text: n + ' applicant' + (n === 1 ? '' : 's') + ' for <strong>' + esc(j.title) + '</strong>', href: pages.ppostings + '?job=' + encodeURIComponent(j.id)}); });
+        return items;
+    }
+    const itemRow = (x) => '<a href="' + x.href + '" class="px-4 py-3 flex gap-3 hover:bg-slate-50"><div class="w-8 h-8 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center flex-shrink-0"><i class="fa-solid ' + x.icon + ' text-[11px]"></i></div><div class="text-[12.5px] text-slate-700 min-w-0">' + x.text + '</div></a>';
+    const needs = needsAction();
+    const nl = document.getElementById('pNotifList');
+    if(nl) nl.innerHTML = needs.length ? needs.map(itemRow).join('') : '<div class="px-4 py-6 text-center text-[12px] text-slate-400">You are all caught up.</div>';
+    document.getElementById('pNotifDot')?.classList.toggle('hidden', !needs.length);
+
+    if(page === 'overview'){
+        const all = placed(), interns = all.filter(p => ['Accepted', 'Deployed', 'Hours complete', 'Completed'].includes(p.status));
+        const applying = all.filter(p => ['Applied', 'Endorsed'].includes(p.status)), open = myPosts().filter(j => j.status !== 'closed');
+        const stat = (v, l, icon) => '<div class="' + card + ' p-4"><div class="flex items-center justify-between"><div class="text-2xl font-extrabold text-slate-900">' + v + '</div><i class="fa-solid ' + icon + ' text-sky-500"></i></div><div class="text-[12.5px] text-slate-500 mt-1">' + l + '</div></div>';
+        const th = (l) => '<th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">' + l + '</th>';
+        const sched = (p) => { const s = scheduleOf(p); return s.days.map(d => DAY_NAMES[d]).join(', ') + ' · ' + fmtClock(clockMins(s.timeIn)) + '–' + fmtClock(clockMins(s.timeOut)) + ' · ' + s.mode; };
+        const att = (p) => { const r = internAttendance(p), n = (st) => r.filter(x => x.status === st).length; return r.length ? (n('Present') + n('Late')) + ' present · ' + n('Late') + ' late · ' + n('Absent') + ' absent' + (n('Flagged') ? ' · ' + n('Flagged') + ' flagged' : '') : '—'; };
+        document.getElementById('pOverview').innerHTML = '<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">' + stat(all.filter(p => ['Deployed', 'Hours complete'].includes(p.status)).length, 'Interns deployed', 'fa-user-graduate')
+            + stat(applying.length, 'Students in process', 'fa-route') + stat(open.length, 'Open postings', 'fa-briefcase') + stat(needs.length, 'Needs your action', 'fa-bell') + '</div>'
+          + '<div class="' + card + '"><div class="px-5 py-3.5 border-b border-slate-200 font-semibold text-sm text-slate-900">Needs your action</div><div class="divide-y divide-slate-100">' + (needs.length ? needs.map(itemRow).join('') : '<div class="px-5 py-5 text-[12.5px] text-slate-400">Nothing to do right now.</div>') + '</div></div>'
+          + '<div class="' + card + ' overflow-x-auto"><div class="px-5 py-3.5 border-b border-slate-200"><div class="font-semibold text-sm text-slate-900">Your interns</div><div class="text-[11.5px] text-slate-400">View only. Schedules, attendance reviews and completion are handled by the OJT coordinator.</div></div>'
+          + '<table class="w-full text-[12.5px]"><thead class="bg-slate-50"><tr>' + th('Intern') + th('Status') + th('Hours') + th('Schedule') + th('Attendance') + th('') + '</tr></thead><tbody class="divide-y divide-slate-100">'
+          + (interns.length ? interns.map(p => '<tr><td class="px-4 py-3 font-medium text-slate-900">' + esc(p.name) + '</td><td class="px-4 py-3">' + placementBadge(p.status) + '</td><td class="px-4 py-3 text-slate-600 whitespace-nowrap">' + (p.hours || 0) + ' / ' + REQUIRED_HOURS + '</td>'
+              + '<td class="px-4 py-3 text-slate-600">' + (p.status === 'Accepted' ? 'Starts after deployment' : esc(sched(p))) + '</td><td class="px-4 py-3 text-slate-600">' + att(p) + '</td>'
+              + '<td class="px-4 py-3 text-right"><a href="' + pages.pvault + '?intern=' + encodeURIComponent(p.name) + '" class="text-[11.5px] font-medium text-sky-600 hover:text-sky-700 whitespace-nowrap"><i class="fa-solid fa-folder-open mr-1"></i>Files</a></td></tr>').join('')
+            : '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">No interns at ' + esc(company) + ' yet.</td></tr>') + '</tbody></table></div>'
+          + '<div class="' + card + ' overflow-x-auto"><div class="px-5 py-3.5 border-b border-slate-200"><div class="font-semibold text-sm text-slate-900">Students applying to ' + esc(company) + '</div><div class="text-[11.5px] text-slate-400">Endorsed students need your signed acceptance letter in the vault.</div></div>'
+          + '<table class="w-full text-[12.5px]"><thead class="bg-slate-50"><tr>' + th('Student') + th('Position') + th('Status') + th('') + '</tr></thead><tbody class="divide-y divide-slate-100">'
+          + (applying.length ? applying.map(p => '<tr><td class="px-4 py-3 font-medium text-slate-900">' + esc(p.name) + '</td><td class="px-4 py-3 text-slate-600">' + esc(p.position || '—') + '</td><td class="px-4 py-3">' + placementBadge(p.status) + '</td>'
+              + '<td class="px-4 py-3 text-right whitespace-nowrap"><button data-resume="' + esc((p.email || p.name).toLowerCase()) + '" data-name="' + esc(p.name) + '" class="' + btn + 'text-sky-600 bg-sky-50 hover:bg-sky-100">View resume</button>'
+              + (p.status === 'Endorsed' ? '<a href="' + pages.pvault + '?intern=' + encodeURIComponent(p.name) + '" class="ml-2 ' + btn + 'text-white bg-sky-600 hover:bg-sky-700">Upload acceptance</a>' : '') + '</td></tr>').join('')
+            : '<tr><td colspan="4" class="px-4 py-6 text-center text-slate-400">No applications in process.</td></tr>') + '</tbody></table></div>';
+    }
+
+    if(page === 'vault'){
+        document.getElementById('closeVaultModalBtn')?.classList.add('hidden');
+        openVault(company, params.get('intern'));
+    }
+
+    if(page === 'postings'){
+        let selected = params.get('job') || '';
+        const field = 'w-full border border-slate-300 rounded-md px-3 py-2 text-[13px] bg-white focus:outline-none focus:ring-2 focus:ring-sky-400';
+        const render = () => {
+            const posts = myPosts().sort((a, b) => (b.postedAt || '').localeCompare(a.postedAt || ''));
+            const sel = posts.find(j => j.id === selected);
+            const ranking = (j) => { const list = applicantsOf(j), internship = isInternshipJob(j);
+                return '<div class="border-t border-slate-200 mt-4 pt-4"><div class="text-[12.5px] font-semibold text-slate-800 mb-1">Candidate ranking</div><div class="text-[11.5px] text-slate-400 mb-3">Sorted by compatibility: 40% course fit + 60% of this posting\'s skills found in the applicant\'s resume. '
+                  + (internship ? 'Internship applicants show their self-declared resume.' : 'Job applicants show their self-declared resume and verified OJT entries.') + '</div>'
+                  + (list.length ? '<div class="overflow-x-auto"><table class="w-full text-[12.5px]"><tbody class="divide-y divide-slate-100">' + list.map((a, i) => '<tr><td class="py-2.5 pr-3 text-slate-400 font-semibold">#' + (i + 1) + '</td>'
+                      + '<td class="py-2.5 pr-3"><div class="font-medium text-slate-900">' + esc(a.who.name) + '</div><div class="text-[10.5px] text-slate-400">' + esc(a.who.program) + ' · applied ' + formatDate(a.app.date) + '</div></td>'
+                      + '<td class="py-2.5 pr-3 w-36"><div class="font-bold text-indigo-700">' + a.match.score + '%</div><div class="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-indigo-500" style="width:' + a.match.score + '%"></div></div></td>'
+                      + '<td class="py-2.5 pr-3"><div class="flex flex-wrap gap-1">' + a.match.skills.map(([n, ok]) => ok ? '<span class="tag-chip matched"><i class="fa-solid fa-check"></i>' + esc(n) + '</span>' : '<span class="tag-chip gap">' + esc(n) + ' <span class="chip-note">gap</span></span>').join('') + (a.match.courseOk ? '' : '<span class="text-[10.5px] text-amber-600">different course</span>') + '</div></td>'
+                      + '<td class="py-2.5 pr-3">' + (internship ? placementBadge(a.status) : '<span class="text-[11px] text-slate-500">Submitted</span>') + '</td>'
+                      + '<td class="py-2.5 text-right"><button data-resume="' + esc(a.key) + '" data-name="' + esc(a.who.name) + '" data-verified="' + (internship ? '0' : '1') + '" class="' + btn + 'text-sky-600 bg-sky-50 hover:bg-sky-100 whitespace-nowrap">View resume</button></td></tr>').join('') + '</tbody></table></div>'
+                    : '<div class="text-[12.5px] text-slate-400 border border-dashed border-slate-200 rounded-md py-6 text-center">No applicants yet. Students see this posting in their Job Matching.</div>') + '</div>'; };
+            document.getElementById('pPostings').innerHTML = '<div class="flex flex-wrap items-start justify-between gap-3"><div><h1 class="text-xl font-bold text-slate-900">Job Postings</h1><p class="text-sm text-slate-500 mt-0.5">Internships and jobs from ' + esc(company) + '. Students see open postings in Job Matching.</p></div>'
+              + '<button data-post="new" class="text-[12.5px] font-semibold text-white bg-sky-600 hover:bg-sky-700 px-3.5 py-2 rounded-md"><i class="fa-solid fa-plus mr-1.5"></i>New posting</button></div>'
+              + (posts.length ? posts.map(j => { const n = applicantsOf(j).length, closed = j.status === 'closed';
+                  return '<div class="' + card + ' p-5' + (j.id === selected ? ' ring-2 ring-sky-300' : '') + '"><div class="flex flex-wrap items-start justify-between gap-3"><div><div class="font-semibold text-slate-900">' + esc(j.title) + '</div>'
+                    + '<div class="text-[12px] text-slate-500 mt-0.5">' + esc(j.type) + ' · ' + esc(j.course) + ' · ' + esc(j.location) + '</div><div class="text-[11.5px] text-slate-400 mt-0.5">' + esc(j.deadline || '') + '</div></div>'
+                    + '<span class="text-[11px] font-semibold px-2.5 py-1 rounded-full border ' + (closed ? 'text-slate-500 bg-slate-50 border-slate-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200') + '">' + (closed ? 'Closed' : 'Open') + '</span></div>'
+                    + '<div class="flex flex-wrap gap-2 mt-3"><button data-post="view" data-id="' + esc(j.id) + '" class="' + btn + 'text-white bg-sky-600 hover:bg-sky-700"><i class="fa-solid fa-ranking-star mr-1"></i>' + (j.id === selected ? 'Hide applicants' : 'View applicants') + ' (' + n + ')</button>'
+                    + '<button data-post="edit" data-id="' + esc(j.id) + '" class="' + btn + 'text-sky-600 bg-sky-50 hover:bg-sky-100"><i class="fa-solid fa-pen mr-1"></i>Edit</button>'
+                    + '<button data-post="toggle" data-id="' + esc(j.id) + '" class="' + btn + 'text-slate-600 bg-slate-100 hover:bg-slate-200">' + (closed ? 'Reopen' : 'Close posting') + '</button></div>'
+                    + (j.id === selected ? ranking(j) : '') + '</div>'; }).join('')
+                : '<div class="' + card + ' p-8 text-center text-[12.5px] text-slate-400">No postings yet. Post an internship or a job to start receiving applicants.</div>');
+            if(sel && params.get('job')) document.querySelector('.ring-2')?.scrollIntoView({block: 'start'});
+        };
+        const openForm = (id) => {
+            const j = id ? allPostings()[id] : {type: 'Internship · Onsite', course: PROGRAM_COURSE[me.program] || 'BSCS', requirements: [], skills: []};
+            const [kind, arr] = (j.type || '').split(' · ');
+            const opt = (list, v) => list.map(x => '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>').join('');
+            const lab = (t, input) => '<label class="block mb-3"><span class="text-[12.5px] font-medium text-slate-600 block mb-1">' + t + '</span>' + input + '</label>';
+            showModal(id ? 'Edit posting' : 'New posting', lab('Title', '<input id="psTitle" class="' + field + '" value="' + esc(j.title || '') + '">')
+              + '<div class="grid grid-cols-3 gap-2">' + lab('Type', '<select id="psKind" class="' + field + '">' + opt(['Internship', 'Full-time', 'Part-time'], kind) + '</select>') + lab('Setup', '<select id="psArr" class="' + field + '">' + opt(['Onsite', 'Hybrid', 'Remote'], arr) + '</select>') + lab('Course', '<select id="psCourse" class="' + field + '">' + opt([...new Set(Object.values(PROGRAM_COURSE))], j.course) + '</select>') + '</div>'
+              + lab('Location', '<input id="psLoc" class="' + field + '" placeholder="ex. Imus, Cavite" value="' + esc(j.location || '') + '">') + lab('Pay / allowance', '<input id="psPay" class="' + field + '" value="' + esc(j.salary || '') + '">')
+              + lab('Description', '<textarea id="psDesc" rows="3" class="' + field + '">' + esc(j.description || '') + '</textarea>') + lab('Requirements (one per line)', '<textarea id="psReq" rows="3" class="' + field + '">' + esc((j.requirements || []).join('\n')) + '</textarea>')
+              + lab('Skills to match (comma separated)', '<input id="psSkills" class="' + field + '" placeholder="ex. SQL, Python, Communication" value="' + esc((j.skills || []).map(x => x[0]).join(', ')) + '">')
+              + lab('Application deadline', '<input id="psDeadline" type="date" class="' + field + '" value="' + esc(j.deadlineISO || '') + '">')
+              + '<div class="flex justify-end gap-2.5 mt-2"><button data-pclose class="text-[12.5px] font-medium text-slate-500 px-3.5 py-2">Cancel</button><button data-post="save" data-id="' + esc(id || '') + '" class="text-[12.5px] font-semibold text-white bg-sky-600 hover:bg-sky-700 px-4 py-2 rounded-md">' + (id ? 'Save' : 'Post') + '</button></div>');
+        };
+        document.addEventListener('click', async (e) => {
+            const b = e.target.closest('[data-post]'); if(!b) return;
+            const id = b.dataset.id, act = b.dataset.post;
+            if(act === 'new' || act === 'edit') return openForm(act === 'edit' ? id : '');
+            if(act === 'view'){ selected = selected === id ? '' : id; return render(); }
+            const all = getJSON(POSTINGS_KEY, {}), cur = allPostings()[id] || {};
+            if(act === 'toggle'){
+                if(cur.status !== 'closed' && !await askConfirm('Close "' + cur.title + '"? Students will no longer see it.')) return;
+                all[id] = Object.assign(all[id] || {}, {status: cur.status === 'closed' ? 'open' : 'closed'});
+                logAudit((cur.status === 'closed' ? 'Reopened' : 'Closed') + ' the posting ' + cur.title + ' (' + company + ')');
+                showToast(cur.status === 'closed' ? 'Posting reopened. Students can apply again.' : 'Posting closed. Students no longer see it.', 'info');
+            }
+            if(act === 'save'){
+                const v = (x) => document.getElementById(x).value.trim(), skills = v('psSkills').split(',').map(x => x.trim()).filter(Boolean);
+                if(!v('psTitle') || !v('psLoc') || !skills.length) return showToast('Add the title, location and at least one skill.', 'warn');
+                const key = id || 'post-' + vaultId();
+                all[key] = Object.assign(all[key] || {}, {company, title: v('psTitle'), type: v('psKind') + ' · ' + v('psArr'), course: v('psCourse'), location: v('psLoc'), salary: v('psPay'), description: v('psDesc'),
+                    requirements: v('psReq').split('\n').map(x => x.trim()).filter(Boolean), skills: skills.map(x => [x]), deadlineISO: v('psDeadline'),
+                    deadline: v('psDeadline') ? 'Application deadline: ' + formatDate(v('psDeadline')) : (cur.deadline || ''), status: cur.status || 'open', postedAt: cur.postedAt || todayISO()});
+                logAudit((id ? 'Updated' : 'Posted') + ' ' + v('psTitle') + ' (' + company + ')');
+                closeModal(modal);
+                selected = key;
+                showToast(id ? 'Posting saved.' : 'Posted. Students can now see it in Job Matching.', 'success');
+            }
+            localStorage.setItem(POSTINGS_KEY, JSON.stringify(all));
+            render();
+        });
+        render();
+    }
+})();

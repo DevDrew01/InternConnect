@@ -176,11 +176,12 @@
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 class="text-xl font-bold text-slate-900">Partner Company & MOA Directory</h1>
-            <p class="text-sm text-slate-500 mt-0.5">Industry partners mapped to BSCS placements.</p>
+            <p class="text-sm text-slate-500 mt-0.5">Industry partners, MOAs and their shared vaults. Partners that sign up are added once you approve them in Requests.</p>
           </div>
+          <div class="flex gap-2"><button id="addPartnerBtn" class="text-[12.5px] font-semibold text-white bg-sky-600 hover:bg-sky-700 px-3.5 py-2 rounded-md transition flex items-center gap-1.5"><i class="fa-solid fa-plus"></i> Add partner</button>
           <button class="export-btn text-[12.5px] font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2 rounded-md transition flex items-center gap-1.5">
             <i class="fa-solid fa-file-export"></i> Export Directory
-          </button>
+          </button></div>
         </div>
 
         <!-- Quick Open: Intern Folder -->
@@ -189,8 +190,9 @@
           <select id="internFolderPicker" class="flex-1 min-w-[200px] border border-slate-300 rounded-md px-2 py-1.5 text-[12.5px] bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"></select>
         </div>
 
-        <!-- Partner Cards (filled by script.js) -->
+        <!-- Partner Cards (built from the partner list in script.js) -->
         <div id="partnerGrid" class="grid md:grid-cols-2 gap-4"></div>
+
       </section>
 
         </main>
