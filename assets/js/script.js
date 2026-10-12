@@ -1704,7 +1704,8 @@ function memberName(m){
 function setMember(m, patch){
     Object.assign(m, patch);
     if(m.real) updateUser(m.id, 'student', patch);
-    if(m.placement || m.sample){
+    // Real students that went through Placements also keep a placement record that must follow the roster status
+    if(m.placement || m.sample || (m.real && getPlacementStore()[m.name])){
         const p = placementList().find(x => x.name === m.name) || {};
         const next = {rosterPatch: Object.assign({}, p.rosterPatch, patch)};
         const status = patch.status === 'alumni' ? 'Completed' : patch.status === 'withdrawn' ? 'Withdrawn' : '';
@@ -3095,6 +3096,8 @@ function processAlumniRequest(email, action){
             return;
         }
         updateUser(email, 'student', {status:'alumni', alumniApprovedAt: todayISO(), completedAt: todayISO(), employment: 'seeking'});
+        const pl = getPlacementStore()[student.name];
+        if(pl) savePlacement(student.name, {status: 'Completed', history: (pl.history || []).concat({status: 'Completed', date: todayISO()})});
         req.status = 'approved';
         req.approvedAt = new Date().toISOString();
         saveAlumniRequests(requests);
