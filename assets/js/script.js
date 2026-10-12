@@ -245,12 +245,20 @@ function updateClass(code, patch){
 function updateUser(email, role, patch){
     saveUsers(getUsers().map(u => (u.email === email && u.role === role) ? Object.assign({}, u, patch) : u));
 }
+// Sample (demo) students only exist in the demo batch. Every other batch only has the students who joined it.
+const sampleFor = (code) => code === SEED_CODE ? sampleMembers : [];
+const studentsOf = (code) => getUsers().filter(u => u.role === 'student' && u.classCode === code && u.status !== 'pending');
+// The batch whose data is on screen: the coordinator's current batch, or a student's own batch
+function currentBatchCode(){
+    const me = getJSON('ic_session', null) || {};
+    return me.role === 'coordinator' ? activeClassCode() : (me.classCode || activeClassCode());
+}
+// Same people as Overview / Roster / Placements: current students vs completed (alumni) of that batch
 function classCounts(code){
-    if(code === SEED_CODE) return {interns: 85, alumni: 12};   // demo numbers, same as the Overview
-    const members = getUsers().filter(u => u.role === 'student' && u.classCode === code);
+    const people = placementList(code);
     return {
-        interns: members.filter(u => ['intern', 'alumni_pending'].includes(u.status || 'intern')).length,
-        alumni: members.filter(u => u.status === 'alumni').length
+        interns: people.filter(p => !['Completed', 'Withdrawn'].includes(p.status)).length,
+        alumni: people.filter(p => p.status === 'Completed').length
     };
 }
 function memberTotal(code){
@@ -496,13 +504,14 @@ on('enterDashboardBtn', 'click', () => {
         const found = all[code];
         if(!found) return showToast('Invalid class code. Ask your coordinator for the correct one.', 'warn');
         if(found.program !== draft.Program) return showToast('This class code is for ' + found.program + ', not your program.', 'warn');
+        if((found.status || 'active') !== 'active') return showToast('This batch is ' + found.status + ' and no longer accepts new students. Ask your coordinator for a new class code.', 'warn');
         theme = found.theme;
         school = found.school || '';
     }
 
     const user = {role, email: draft.Email, password: draft.Password, name: draft.FirstName + ' ' + draft.LastName,
                   program: draft.Program, theme, school, classCode: code, avatar: draft.avatar || '',
-                  status: role === 'coordinator' ? 'active' : 'pending',   // students and partners wait for the coordinator
+                  status: role === 'coordinator' ? 'active' : 'pending', requestedAt: todayISO(),   // students and partners wait for the coordinator
                   company: draft.CompanyName || '', studentNumber: draft.StudentNumber || ''};
     saveUsers(getUsers().concat(user));
     sessionStorage.removeItem('ic_reg');
@@ -570,16 +579,31 @@ document.querySelectorAll('.subtab-btn').forEach(btn => {
     });
 });
 
-// Real sign ups of the current batch show up on top of the sample cards
+// Sample requests only exist in the demo batch. Every other batch only shows its real sign ups.
+// Handled sample requests are remembered so they do not come back after a refresh.
+const SAMPLE_JOINS_KEY = 'ic_sample_joins_done';
+const SAMPLE_JOINS = [
+    {sample: 's-mc', role: 'student', name: 'Mikaela Cruz', studentNumber: '2023-0199', requestedAt: '2026-09-16'},
+    {sample: 's-rt', role: 'student', name: 'Ronan Tolentino', studentNumber: '2023-0142', requestedAt: '2026-09-16'},
+    {sample: 's-bs', role: 'student', name: 'Bea Santiago', studentNumber: '2023-0210', requestedAt: '2026-09-15'},
+    {sample: 'p-nx', role: 'partnercompany', company: 'Nexora Systems Inc.', contact: 'Ms. Karla P., HR Lead'},
+    {sample: 'p-cd', role: 'partnercompany', company: 'Cavite Digital Hub', contact: 'Mr. Ian F., Operations'}
+];
+
 function pendingCard(u){
-    const initials = (u.name || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
     const isStudent = u.role === 'student';
+    const title = isStudent ? u.name : (u.company || u.name);
+    const initials = (title || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
     const avatar = isStudent
         ? '<div class="w-9 h-9 rounded-full bg-slate-100 text-slate-600 text-[12px] font-semibold flex items-center justify-center">' + esc(initials) + '</div>'
         : '<div class="w-9 h-9 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center"><i class="fa-solid fa-building"></i></div>';
-    const meta = isStudent ? esc(u.studentNumber || u.email) + ' · new sign up' : esc(u.company || u.name) + ' · ' + esc(u.email);
-    return '<div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center justify-between gap-3" data-email="' + esc(u.email) + '" data-userrole="' + u.role + '">'
-      + '<div class="flex items-center gap-3">' + avatar + '<div><div class="font-semibold text-slate-900 text-sm">' + esc(isStudent ? u.name : (u.company || u.name)) + '</div><div class="text-[11.5px] text-slate-400">' + meta + '</div></div></div>'
+    const when = u.requestedAt ? 'requested ' + formatDate(u.requestedAt) : 'new sign up';
+    const meta = isStudent
+        ? esc(u.studentNumber || u.email || '') + ' · ' + when
+        : (u.contact ? 'Requested link · ' + esc(u.contact) : esc(u.email || '') + ' · ' + when);
+    const id = u.sample ? ' data-sample="' + u.sample + '"' : ' data-email="' + esc(u.email) + '"';
+    return '<div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center justify-between gap-3"' + id + ' data-userrole="' + u.role + '" data-name="' + esc(title) + '">'
+      + '<div class="flex items-center gap-3">' + avatar + '<div><div class="font-semibold text-slate-900 text-sm">' + esc(title) + '</div><div class="text-[11.5px] text-slate-400">' + meta + '</div></div></div>'
       + '<div class="flex gap-2 flex-shrink-0">'
       + '<button class="join-approve text-[12px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-md transition"><i class="fa-solid fa-check mr-1"></i>Approve</button>'
       + '<button class="join-reject text-[12px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md transition"><i class="fa-solid fa-xmark mr-1"></i>Reject</button>'
@@ -591,29 +615,41 @@ function updateRequestCounts(){
     document.getElementById('wrPartnersCount').textContent = '(' + count('wr-partners') + ')';
     document.getElementById('wrDeletionsCount').textContent = '(' + count('wr-deletions') + ')';
 }
-if(document.getElementById('wr-students')){
+function renderJoinRequests(){
     const code = activeClassCode();
-    const pending = getUsers().filter(u => u.classCode === code && u.status === 'pending');
-    pending.filter(u => u.role === 'student').forEach(u => document.getElementById('wr-students').insertAdjacentHTML('afterbegin', pendingCard(u)));
-    pending.filter(u => u.role === 'partnercompany').forEach(u => document.getElementById('wr-partners').insertAdjacentHTML('afterbegin', pendingCard(u)));
+    const done = getJSON(SAMPLE_JOINS_KEY, []);
+    const real = getUsers().filter(u => u.classCode === code && u.status === 'pending')
+        .sort((a, b) => (b.requestedAt || '').localeCompare(a.requestedAt || ''));
+    const samples = code === SEED_CODE ? SAMPLE_JOINS.filter(x => !done.includes(x.sample)) : [];
+    const fill = (id, role, empty) => {
+        const items = real.filter(u => u.role === role).concat(samples.filter(x => x.role === role));
+        document.getElementById(id).innerHTML = items.length ? items.map(pendingCard).join('') : '<p class="text-[12.5px] text-slate-400">' + empty + '</p>';
+    };
+    fill('wr-students', 'student', 'No pending student requests.');
+    fill('wr-partners', 'partnercompany', 'No pending partner company requests.');
     updateRequestCounts();
 }
+if(document.getElementById('wr-students')) renderJoinRequests();
 
-// Approve and Reject (approved students become Interns, rejected sign ups are deleted)
+// Approve and Reject (approved students become Interns, rejected sign ups are deleted). Both are written to the audit trail.
 document.addEventListener('click', (e) => {
     const approve = e.target.closest('.join-approve');
     const reject = e.target.closest('.join-reject');
     if(!approve && !reject) return;
     const card = (approve || reject).closest('.bg-white');
-    const name = card.querySelector('.font-semibold').textContent;
-    const email = card.dataset.email, role = card.dataset.userrole;
+    const name = card.dataset.name;   // not the first .font-semibold: that is the avatar initials
+    const email = card.dataset.email, role = card.dataset.userrole, sampleId = card.dataset.sample;
+    const isPartner = role === 'partnercompany';
+    if(reject && !confirm('Reject ' + name + '?\n\nTheir sign-up will be removed and they will need to register again.')) return;
     if(email){
-        if(approve) updateUser(email, role, {status: role === 'student' ? 'intern' : 'active'});
+        if(approve) updateUser(email, role, {status: role === 'student' ? 'intern' : 'active', approvedAt: todayISO()});
         else saveUsers(getUsers().filter(u => !(u.email === email && u.role === role)));
+    } else if(sampleId){
+        localStorage.setItem(SAMPLE_JOINS_KEY, JSON.stringify(getJSON(SAMPLE_JOINS_KEY, []).concat(sampleId)));
     }
-    card.remove();
-    updateRequestCounts();
-    if(approve) showToast(name + ' approved and added to the class.', 'success');
+    logAudit((approve ? 'Approved ' : 'Rejected ') + name + (isPartner ? "'s partner link request" : "'s request to join") + ' (' + activeClassCode() + ')', approve ? 'Success' : 'Deleted');
+    renderJoinRequests();
+    if(approve) showToast(name + (isPartner ? ' approved as a partner company.' : ' approved and added to the class.'), 'success');
     else showToast(name + "'s request was rejected.", 'warn');
 });
 
@@ -1098,7 +1134,7 @@ function renderClasses(){
 }
 
 if(document.getElementById('classList')){
-    renderClasses();
+    document.addEventListener('DOMContentLoaded', renderClasses);
     on('showArchived', 'change', renderClasses);
 
     document.getElementById('classList').addEventListener('click', (e) => {
@@ -1169,7 +1205,22 @@ if(document.getElementById('classList')){
 // Letters are made and signed outside the system; the vault only keeps and shares the signed scans.
 const VAULT_KEY = 'ic_vault';
 const VAULT_TYPES = ['MOA / MOU', 'Endorsement letter', 'Acceptance letter', 'Supervisor evaluation', 'DTR / attendance', 'Company document', 'Other'];
-const PARTNER_COMPANIES = ['Brightpath Software', 'Verano Digital Studio', 'Nova Retail Systems', 'Cavite Provincial IT Office'];
+// Sample partner companies only exist in the demo batch. Every other batch only has the companies whose sign up the coordinator approved (Requests page).
+const DEMO_PARTNERS = [
+    {name: 'Brightpath Software', field: 'Software Development', status: 'Active', moa: 'MOA valid until <strong class="text-slate-700">Dec 2027</strong>', hr: 'Ms. Sarah Geronimo'},
+    {name: 'Verano Digital Studio', field: 'Web & Creative Services', status: 'Expiring Soon', moa: 'MOA expires <strong class="text-slate-700">Nov 2026</strong>', hr: 'Mr. Paulo Ramirez'},
+    {name: 'Nova Retail Systems', field: 'Retail Technology', status: 'Active', moa: 'MOA valid until <strong class="text-slate-700">June 2028</strong>', hr: 'Ms. Donna Villar'},
+    {name: 'Cavite Provincial IT Office', field: 'Government / Public Sector', status: 'Active', moa: 'MOA valid until <strong class="text-slate-700">Jan 2027</strong>', hr: 'Engr. Bautista'}
+];
+function partnerList(code){
+    code = code || currentBatchCode();
+    const list = code === SEED_CODE ? DEMO_PARTNERS.map(d => Object.assign({}, d)) : [];
+    getUsers().filter(u => u.role === 'partnercompany' && u.classCode === code && u.status === 'active' && u.company).forEach(u => {
+        if(!list.some(p => p.name === u.company)) list.push({name: u.company, field: 'Partner company', hr: u.name, real: true});
+    });
+    return list;
+}
+const partnerNames = (code) => partnerList(code).map(p => p.name);
 
 const getVaults = () => getJSON(VAULT_KEY, {});
 const saveVaults = (all) => localStorage.setItem(VAULT_KEY, JSON.stringify(all));
@@ -1443,12 +1494,13 @@ function rosterHistory(m){
 }
 
 // Every student with their placement status
-function placementList(){
+function placementList(code){
+    code = code || currentBatchCode();
     const store = getPlacementStore();
     const out = {};
-    Object.keys(PLACEMENT_SEED).forEach(n => { out[n] = Object.assign({name: n}, PLACEMENT_SEED[n], store[n] || {}); });
-    const roster = sampleMembers.map(m => Object.assign({}, m))
-        .concat(getUsers().filter(u => u.role === 'student' && u.status !== 'pending').map(u => ({
+    if(code === SEED_CODE) Object.keys(PLACEMENT_SEED).forEach(n => { out[n] = Object.assign({name: n}, PLACEMENT_SEED[n], store[n] || {}); });
+    const roster = sampleFor(code).map(m => Object.assign({}, m))
+        .concat(studentsOf(code).map(u => ({
             real: true, email: u.email, name: u.name, company: u.company || '', hours: u.ojtHours || u.hours || 0,
             status: u.status === 'alumni_pending' ? 'intern' : (u.status || 'intern'), completedAt: u.completedAt, withdrawnAt: u.withdrawnAt})));
     roster.forEach(m => {
@@ -1504,7 +1556,7 @@ function loadRoster(){
         .map(p => Object.assign({id: 'p:' + p.name, placement: true, name: p.name, company: p.company, hours: p.hours || 0, status: 'intern'}, p.rosterPatch || {}));
     const store = getPlacementStore();
     const credited = Object.fromEntries(placementList().map(p => [p.name, p.hours]));
-    rosterMembers = real.concat(placed, sampleMembers.map(m => Object.assign({sample: true}, m, (store[m.name] || {}).rosterPatch || {})))
+    rosterMembers = real.concat(placed, sampleFor(code).map(m => Object.assign({sample: true}, m, (store[m.name] || {}).rosterPatch || {})))
         .filter(m => !isAnonymized(m.name))
         .map(m => credited[m.name] != null && m.status === 'intern' ? Object.assign(m, {hours: credited[m.name]}) : m);
 }
@@ -1681,7 +1733,7 @@ on('studentSearch', 'input', filterAttendance);
 on('companyFilter', 'change', filterAttendance);
 on('statusFilter', 'change', filterAttendance);
 if(document.getElementById('attendanceTbody')){
-    document.getElementById('companyFilter').insertAdjacentHTML('beforeend', PARTNER_COMPANIES.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join(''));
+    document.getElementById('companyFilter').insertAdjacentHTML('beforeend', partnerNames().map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join(''));
     renderAttendance();
 }
 
@@ -1768,8 +1820,9 @@ function openInternFiles(company, intern){
 
 // Interns deployed to a company (real students + sample roster)
 function internsOf(company){
-    const real = getUsers().filter(u => u.role === 'student' && u.company === company && u.status !== 'pending').map(u => u.name);
-    const sample = sampleMembers.filter(m => m.company === company).map(m => m.name);
+    const code = currentBatchCode();
+    const real = studentsOf(code).filter(u => u.company === company).map(u => u.name);
+    const sample = sampleFor(code).filter(m => m.company === company).map(m => m.name);
     const placed = placementList().filter(p => p.company === company && p.status !== 'Not placed').map(p => p.name);
     return [...new Set(real.concat(sample, placed))];
 }
@@ -1783,10 +1836,10 @@ function ensureVault(company){
             {id: 'agreements', name: 'Agreements (MOA / MOU)', parent: null, system: true},
             {id: 'company', name: 'Company documents', parent: null, system: true},
             {id: 'interns', name: 'Interns', parent: null, system: true}
-        ], files: [
+        ], files: DEMO_PARTNERS.some(d => d.name === company) ? [
             {id: vaultId(), name: 'MOA_' + fileSlug(company) + '_2026.pdf', folder: 'agreements', type: 'MOA / MOU', owner: 'hr', uploadedAt: '2026-06-02', version: 1},
             {id: vaultId(), name: 'Company_Profile.pdf', folder: 'company', type: 'Company document', owner: 'coordinator', uploadedAt: '2026-06-05', version: 1}
-        ]};
+        ] : []};
         all[company] = v;
     }
     internsOf(company).forEach(name => {
@@ -1928,6 +1981,31 @@ function openVault(company, intern){
     vaultModal.classList.remove('hidden');
 }
 
+function partnerCard(p){
+    const n = placementList().filter(x => x.company === p.name && ['Deployed', 'Hours complete'].includes(x.status)).length;
+    let moa = p.moa, status = p.status;
+    if(p.real){
+        const file = ((getVaults()[p.name] || {}).files || []).find(f => f.type === 'MOA / MOU');
+        moa = file ? 'MOA on file, uploaded <strong class="text-slate-700">' + formatDate(file.uploadedAt) + '</strong>' : 'No MOA on file yet. Upload it to the vault.';
+        status = file ? 'Active' : 'MOA needed';
+    }
+    const badge = {'Active': 'text-emerald-700 bg-emerald-50 border-emerald-200'}[status] || 'text-amber-600 bg-amber-50 border-amber-200';
+    return '<div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">'
+      + '<div class="flex items-start justify-between"><div><div class="font-semibold text-slate-900">' + esc(p.name) + '</div><div class="text-[12px] text-slate-500 mt-0.5">' + esc(p.field) + '</div></div>'
+      + '<span class="text-[11px] font-semibold px-2.5 py-1 rounded-full border ' + badge + '">' + status + '</span></div>'
+      + '<div class="text-[12px] text-slate-500 mt-3">' + moa + '</div>'
+      + '<div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 text-[12.5px]">'
+      + '<span class="text-slate-600"><i class="fa-solid fa-users mr-1.5 text-slate-400"></i>' + n + (n === 1 ? ' intern' : ' interns') + ' deployed</span>'
+      + '<span class="text-slate-400">HR: ' + esc(p.hr || '—') + '</span></div>'
+      + '<button class="open-vault-btn mt-3 w-full text-[12px] font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-3 py-2 rounded-md transition" data-company="' + esc(p.name) + '"><i class="fa-solid fa-vault mr-1.5"></i>Open Vault</button></div>';
+}
+const partnerGrid = document.getElementById('partnerGrid');
+if(partnerGrid){
+    const list = partnerList();
+    partnerGrid.innerHTML = list.length ? list.map(partnerCard).join('')
+        : '<div class="md:col-span-2 bg-white rounded-xl border border-dashed border-slate-300 p-8 text-center text-[12.5px] text-slate-500">No partner companies in this batch yet.<br>Companies appear here after you approve their request on the Requests page.</div>';
+}
+
 if(vaultModal){
     document.querySelectorAll('.open-vault-btn').forEach(btn => btn.addEventListener('click', () => openVault(btn.dataset.company)));
     renderSiteLines();
@@ -1937,7 +2015,7 @@ if(vaultModal){
     // Quick open: any intern's folder from the directory page
     const picker = document.getElementById('internFolderPicker');
     if(picker){
-        picker.innerHTML = '<option value="">Select an intern…</option>' + PARTNER_COMPANIES.map(c => {
+        picker.innerHTML = '<option value="">Select an intern…</option>' + partnerNames().map(c => {
             const names = internsOf(c);
             return names.length ? '<optgroup label="' + esc(c) + '">' + names.map(n => '<option value="' + esc(c + '|' + n) + '">' + esc(n) + '</option>').join('') + '</optgroup>' : '';
         }).join('');
@@ -2130,9 +2208,10 @@ function placementAction(name, act){
     };
     if(act === 'files'){ openInternFiles(p.company, p.name); return; }
     if(act === 'apply'){
+        if(!partnerNames().length){ showToast('No partner companies in this batch yet. Approve a partner company request first.', 'warn'); return; }
         applyTarget = name;
         document.getElementById('applyName').textContent = 'Where did ' + name + ' apply?';
-        document.getElementById('applyCompany').innerHTML = PARTNER_COMPANIES.map(c => '<option>' + esc(c) + '</option>').join('');
+        document.getElementById('applyCompany').innerHTML = partnerNames().map(c => '<option>' + esc(c) + '</option>').join('');
         openModal(document.getElementById('applyModal'));
         return;
     }
@@ -2539,7 +2618,8 @@ function deletionCard(r){
         + '<p class="text-[11.5px] text-slate-500 mt-3">Profile, resume and job-matching data will be deleted. The OJT record (hours, attendance photos and GPS, approved logs, signed scans) is kept read-only until <strong class="text-slate-700">' + keep + '</strong> (5 years after completion).</p></div>';
 }
 function renderDeletionRequests(){
-    const all = getDeletionRequests();
+    const code = activeClassCode();
+    const all = getDeletionRequests().filter(r => r.classCode ? r.classCode === code : code === SEED_CODE);
     const open = all.filter(r => r.status !== 'processed'), processed = all.filter(r => r.status === 'processed');
     document.getElementById('wr-deletions').innerHTML = (open.length ? open.map(deletionCard).join('') : '<p class="text-[12.5px] text-slate-400">No open deletion requests.</p>')
         + (processed.length ? '<div class="pt-3 space-y-2.5"><div class="text-[11px] uppercase tracking-wide font-semibold text-slate-400">Processed</div>' + processed.map(deletionCard).join('') + '</div>' : '');
@@ -2605,14 +2685,20 @@ function attentionItems(){
 }
 const TONE = {sky: 'bg-sky-50 text-sky-600', slate: 'bg-slate-100 text-slate-500', emerald: 'bg-emerald-50 text-emerald-600', red: 'bg-red-50 text-red-500', amber: 'bg-amber-50 text-amber-600'};
 
-function renderOverview(){
-    getDeletionRequests();
+// The numbers behind the stat cards (also used by Export Summary so the file always matches the screen)
+function overviewMetrics(){
     const all = placementList();
     const active = all.filter(p => ['Deployed', 'Hours complete'].includes(p.status));
     const inBatch = all.filter(p => !['Completed', 'Withdrawn'].includes(p.status));
     const avg = active.length ? Math.round(active.reduce((t, p) => t + (p.hours || 0), 0) / active.length) : 0;
     const flags = active.reduce((t, p) => t + pendingFlags(p), 0);
-    const withInterns = PARTNER_COMPANIES.filter(c => active.some(p => p.company === c)).length;
+    const withInterns = partnerNames().filter(c => active.some(p => p.company === c)).length;
+    return {all, active, inBatch, avg, flags, withInterns};
+}
+
+function renderOverview(){
+    getDeletionRequests();
+    const {all, active, inBatch, avg, flags, withInterns} = overviewMetrics();
     const card = (href, value, label, sub, icon, tone) => '<a href="' + href + '" class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:border-sky-300 transition">'
         + '<div class="flex items-center justify-between"><div class="text-2xl font-extrabold text-slate-900">' + value + '</div><div class="w-9 h-9 rounded-lg ' + tone + ' flex items-center justify-center"><i class="fa-solid ' + icon + '"></i></div></div>'
         + '<div class="text-[12.5px] text-slate-500 mt-1">' + label + '</div><div class="text-[11px] text-slate-400">' + sub + '</div></a>';
@@ -2622,7 +2708,7 @@ function renderOverview(){
         + '<a href="' + pages.attendance + '" class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:border-sky-300 transition col-span-2 sm:col-span-1"><div class="text-[12.5px] text-slate-500 mb-1.5">Average rendered hours</div>'
         + '<div class="text-lg font-bold text-slate-900 mb-1.5">' + avg + ' <span class="text-[12px] font-medium text-slate-400">/ ' + REQUIRED_HOURS + ' hrs</span></div>'
         + '<div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-sky-600" style="width:' + Math.min(100, Math.round(avg / REQUIRED_HOURS * 100)) + '%"></div></div><div class="text-[11px] text-slate-400 mt-1.5">deployed interns only</div></a>'
-        + card(pages.partners, PARTNER_COMPANIES.length, 'Partner companies', withInterns + ' with deployed interns', 'fa-handshake', 'bg-emerald-50 text-emerald-500');
+        + card(pages.partners, partnerNames().length, 'Partner companies', withInterns + ' with deployed interns', 'fa-handshake', 'bg-emerald-50 text-emerald-500');
     document.getElementById('overviewPipeline').innerHTML = PLACEMENT_STEPS.map(stage =>
         '<a href="' + pages.placements + '?stage=' + encodeURIComponent(stage) + '" class="rounded-lg border border-slate-200 hover:border-sky-300 hover:bg-sky-50/50 px-3 py-2 transition">'
         + '<div class="text-[10.5px] text-slate-500 truncate">' + stage + '</div><div class="text-lg font-bold text-slate-900 leading-tight">' + all.filter(p => p.status === stage).length + '</div></a>').join('');
@@ -2635,6 +2721,9 @@ function renderOverview(){
         + '<div class="text-[12.5px] text-slate-600 pt-1">' + i.html + '</div></a>').join('')
         : '<div class="px-5 py-6 text-[12.5px] text-slate-400 text-center">All caught up.</div>';
 
+    const activity = document.getElementById('overviewActivity');
+    if(activity && currentBatchCode() !== SEED_CODE) activity.innerHTML = '<div class="px-5 py-6 text-[12.5px] text-slate-400 text-center">No activity yet in this batch.</div>';
+
     const tasks = getAllTasks().filter(t => t.classCode === activeClassCode() && t.status !== 'archived');
     document.getElementById('overviewTasks').innerHTML = tasks.length ? tasks.map(t => {
         const pct = t.total ? Math.min(100, Math.round(t.turnedIn / t.total * 100)) : 0;
@@ -2646,6 +2735,167 @@ function renderOverview(){
     }).join('') : '<div class="px-5 py-6 text-[12.5px] text-slate-400 text-center">No active tasks.</div>';
 }
 if(document.getElementById('overviewPipeline')) renderOverview();
+
+
+/* ============ Overview: Export Summary (Excel + PDF) ============ */
+
+// Everything the dashboard shows, as plain rows (first row of each table is its header)
+function overviewSummary(){
+    const m = overviewMetrics();
+    const code = activeClassCode();
+    const cls = activeClass() || {};
+    const me = getJSON('ic_session', null) || {};
+    const plain = (html) => (new DOMParser().parseFromString(html, 'text/html').body.textContent || '').trim();   // "<strong>Aiyu</strong> is at risk" -> "Aiyu is at risk"
+    const tasks = getAllTasks().filter(t => t.classCode === code && t.status !== 'archived');
+    const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+
+    return {
+        code,
+        details: [
+            ['Report', 'Overview Dashboard summary'],
+            ['Batch (class code)', code],
+            ['Program', cls.program || ''],
+            ['Term', cls.term || ''],
+            ['Generated on', todayISO()],
+            ['Generated by', me.name || me.email || '']
+        ],
+        stats: [
+            ['Metric', 'Value', 'Note'],
+            ['Students in this batch', m.inBatch.length, 'Not yet completed or withdrawn'],
+            ['Deployed interns', m.active.length, 'Deployed or hours complete'],
+            ['Flagged clock-ins awaiting review', m.flags, 'Outside the geofence'],
+            ['Average hours rendered', m.avg, 'Per deployed intern, of ' + REQUIRED_HOURS + ' required'],
+            ['Average OJT progress (%)', pct(m.avg, REQUIRED_HOURS), ''],
+            ['Partner companies', partnerNames().length, ''],
+            ['Partner companies with deployed interns', m.withInterns, '']
+        ],
+        pipeline: [['Stage', 'Students']].concat(PLACEMENT_STEPS.map(stage => [stage, m.all.filter(p => p.status === stage).length])),
+        attention: [['#', 'Needs attention']].concat(attentionItems().map((i, n) => [n + 1, plain(i.html)])),
+        tasks: [['Task', 'Due date', 'Max points', 'Status', 'Turned in', 'Total students', 'Submission rate (%)']]
+            .concat(tasks.map(t => [t.title, t.dueDate || '', t.maxPoints == null ? '' : t.maxPoints, capitalize(t.status || 'open'), t.turnedIn || 0, t.total || 0, pct(t.turnedIn || 0, t.total || 0)]))
+    };
+}
+
+function exportOverviewPdf(){
+    const lib = window.jspdf && window.jspdf.jsPDF;
+    if(!lib){
+        showToast('The PDF library could not load (are you offline?). Use the Excel option instead.', 'warn');
+        return false;
+    }
+    const doc = new lib({unit: 'pt', format: 'a4'});
+    if(typeof doc.autoTable !== 'function'){
+        showToast('The PDF library could not load (are you offline?). Use the Excel option instead.', 'warn');
+        return false;
+    }
+    const d = overviewSummary();
+    const det = Object.fromEntries(d.details);
+    // Follow the coordinator's colour theme (sky / emerald / rose)
+    const css = getComputedStyle(document.documentElement);
+    const rgb = (name, fallback) => { const h = css.getPropertyValue(name).trim().replace('#', ''); return /^[0-9a-f]{6}$/i.test(h) ? [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)) : fallback; };
+    const accent = rgb('--b600', [2, 132, 199]), dark = rgb('--bd', [15, 23, 42]);
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 40;
+
+    // Header band
+    doc.setFillColor(...dark);
+    doc.rect(0, 0, W, 82, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(19);
+    doc.text('Overview Dashboard Summary', M, 38);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    doc.text([det['Batch (class code)'], det['Program'], det['Term']].filter(Boolean).join('  -  '), M, 58);
+    doc.text('Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : ''), M, 72);
+
+    let y = 108;
+    const section = (title, needed) => {
+        if(y > H - (needed || 110)){ doc.addPage(); y = M; }
+        doc.setTextColor(...dark); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+        doc.text(title, M, y);
+        y += 8;
+    };
+    const table = (opts) => {
+        doc.autoTable(Object.assign({
+            startY: y, theme: 'striped', margin: {left: M, right: M, bottom: 50},
+            styles: {fontSize: 9.5, cellPadding: 5, textColor: [30, 41, 59]},
+            headStyles: {fillColor: accent, textColor: 255, fontStyle: 'bold'},
+            alternateRowStyles: {fillColor: [248, 250, 252]}
+        }, opts));
+        y = doc.lastAutoTable.finalY + 24;
+    };
+
+    section('Key numbers');
+    table({head: [d.stats[0]], body: d.stats.slice(1),
+        columnStyles: {0: {cellWidth: 190}, 1: {halign: 'right', fontStyle: 'bold', cellWidth: 60}, 2: {textColor: [100, 116, 139]}}});
+
+    section('Internship pipeline');
+    table({head: [d.pipeline.slice(1).map(r => r[0])], body: [d.pipeline.slice(1).map(r => r[1])],
+        styles: {fontSize: 9, cellPadding: 6, halign: 'center', textColor: [30, 41, 59]}, bodyStyles: {fontSize: 13, fontStyle: 'bold'}});
+
+    section('Needs attention (' + (d.attention.length - 1) + ')');
+    table({head: [d.attention[0]], body: d.attention.length > 1 ? d.attention.slice(1) : [['', 'All caught up.']],
+        columnStyles: {0: {cellWidth: 28, halign: 'center'}}});
+
+    section('Task submission tracker');
+    table({head: [['Task', 'Due date', 'Max points', 'Status', 'Turned in', 'Rate']],
+        body: d.tasks.length > 1 ? d.tasks.slice(1).map(r => [r[0], r[1], r[2], r[3], r[4] + ' / ' + r[5], r[6] + '%']) : [['No active tasks.', '', '', '', '', '']],
+        columnStyles: {2: {halign: 'center'}, 4: {halign: 'center'}, 5: {halign: 'center'}}});
+
+    // Footer on every page
+    const pages = doc.getNumberOfPages();
+    for(let i = 1; i <= pages; i++){
+        doc.setPage(i);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120, 130, 145);
+        doc.text('InternConnect  |  Overview summary  |  ' + det['Generated on'], M, H - 24);
+        doc.text('Page ' + i + ' of ' + pages, W - M, H - 24, {align: 'right'});
+    }
+    doc.save('Overview_Summary_' + fileSlug(d.code || 'batch') + '_' + todayISO() + '.pdf');
+    return true;
+}
+
+function exportOverviewXlsx(){
+    if(typeof XLSX === 'undefined'){
+        showToast('The Excel library could not load (are you offline?). Use the PDF option instead.', 'warn');
+        return false;
+    }
+    const d = overviewSummary();
+    const sheet = (rows, widths) => {
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = widths.map(w => ({wch: w}));
+        return ws;
+    };
+    const wb = XLSX.utils.book_new();
+    // Sheet 1 = report details, a blank line, then the key numbers
+    XLSX.utils.book_append_sheet(wb, sheet(d.details.concat([[], ['Key numbers']], d.stats), [38, 32, 48]), 'Summary');
+    XLSX.utils.book_append_sheet(wb, sheet(d.pipeline, [22, 12]), 'Pipeline');
+    XLSX.utils.book_append_sheet(wb, sheet(d.attention.length > 1 ? d.attention : [d.attention[0], ['', 'All caught up.']], [6, 100]), 'Needs Attention');
+    XLSX.utils.book_append_sheet(wb, sheet(d.tasks.length > 1 ? d.tasks : [d.tasks[0], ['No active tasks.']], [38, 13, 12, 10, 11, 15, 19]), 'Task Tracker');
+    XLSX.writeFile(wb, 'Overview_Summary_' + fileSlug(d.code || 'batch') + '_' + todayISO() + '.xlsx');
+    return true;
+}
+
+if(document.getElementById('exportSummaryBtn')){
+    const btn = document.getElementById('exportSummaryBtn');
+    const menu = document.getElementById('exportSummaryMenu');
+    const setMenu = (open) => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
+    btn.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.classList.contains('hidden')); });
+    document.addEventListener('click', (e) => { if(!menu.contains(e.target)) setMenu(false); });
+    document.addEventListener('keydown', (e) => { if(e.key === 'Escape') setMenu(false); });
+    menu.addEventListener('click', (e) => {
+        const item = e.target.closest('[data-export]');
+        if(!item) return;
+        setMenu(false);
+        const kind = item.dataset.export;
+        const label = kind === 'xlsx' ? 'Excel' : 'PDF';
+        try {
+            if(!(kind === 'xlsx' ? exportOverviewXlsx() : exportOverviewPdf())) return;
+        } catch(err){
+            console.error(err);
+            showToast('Could not create the file. Please try again.', 'warn');
+            return;
+        }
+        logAudit('Exported the Overview summary (' + label + ')');
+        showToast('Overview summary downloaded as ' + label + '.', 'success');
+    });
+}
 
 
 /* ============ Alumni Status Requests (shared local prototype storage) ============ */
@@ -2678,7 +2928,7 @@ function renderAlumniRequestSection(){
     if(!wr && !marker) return;
     const me = currentCoordinator();
     if(me.role !== 'coordinator') return;
-    const filtered = getAlumniRequests().filter(r => r.status === 'pending' && (!r.coordinatorEmail || r.coordinatorEmail === me.email));
+    const filtered = getAlumniRequests().filter(r => r.status === 'pending' && (!r.coordinatorEmail || r.coordinatorEmail === me.email) && (!r.classCode || r.classCode === activeClassCode()));
     if(marker){
         marker.querySelector('[data-alumni-count]').textContent = '(' + filtered.length + ')';
         const list = marker.querySelector('[data-alumni-list]');
@@ -3438,8 +3688,9 @@ if(document.body.dataset.role === 'student') document.addEventListener('DOMConte
         const progress = '<div class="flex flex-wrap gap-1.5 mb-3">' + steps.map((st, i) => '<span class="text-[11px] font-semibold px-2.5 py-1 rounded-full border '
             + (i < at || p.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : i === at ? 'bg-sky-600 text-white border-sky-600' : 'text-slate-400 border-slate-200') + '">' + st + '</span>').join('') + '</div>';
         let body = progress + '<p class="text-[12.5px] text-slate-600">' + (p.company ? '<strong>' + esc(p.company) + '</strong>' + (p.position ? ' · ' + esc(p.position) : '') + ' · ' : '') + NEXT[p.status] + '</p>';
-        if(p.status === 'Not placed') body += '<div class="grid sm:grid-cols-[1fr_1fr_150px_auto] gap-2 mt-3">'
-            + '<select id="stApplyCompany" class="' + field + '">' + PARTNER_COMPANIES.map(c => '<option>' + esc(c) + '</option>').join('') + '</select>'
+        if(p.status === 'Not placed' && !partnerNames().length) body += '<p class="text-[12px] text-slate-500 mt-3">No partner companies are linked to your batch yet. Your coordinator has to approve one first.</p>';
+        else if(p.status === 'Not placed') body += '<div class="grid sm:grid-cols-[1fr_1fr_150px_auto] gap-2 mt-3">'
+            + '<select id="stApplyCompany" class="' + field + '">' + partnerNames().map(c => '<option>' + esc(c) + '</option>').join('') + '</select>'
             + '<input id="stApplyPosition" placeholder="Position (e.g. Web Developer Intern)" class="' + field + '"><input id="stApplyDate" type="date" value="' + todayISO() + '" class="' + field + '">'
             + '<button id="stApplyBtn" class="text-[12.5px] font-semibold text-white bg-sky-600 hover:bg-sky-700 px-4 py-2 rounded-md">Record application</button></div>'
             + '<p class="text-[11px] text-slate-400 mt-1.5">One active application at a time. Your coordinator can also record it for you.</p>';
@@ -3484,7 +3735,7 @@ if(document.body.dataset.role === 'student') document.addEventListener('DOMConte
             }
             if(e.target.closest('#stDeleteReq')){
                 if(!confirm('Request deletion of your profile, resume and job-matching data?')) return;
-                const all = getDeletionRequests().concat({name: p.name, requestedAt: todayISO(), status: 'pending', completedAt: alumniCompletedAt(p)});
+                const all = getDeletionRequests().concat({name: p.name, classCode: me.classCode || SEED_CODE, requestedAt: todayISO(), status: 'pending', completedAt: alumniCompletedAt(p)});
                 localStorage.setItem(DELETION_KEY, JSON.stringify(all));
                 showToast('Deletion request sent to your coordinator.', 'success');
             }
