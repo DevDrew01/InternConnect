@@ -245,12 +245,20 @@ function updateClass(code, patch){
 function updateUser(email, role, patch){
     saveUsers(getUsers().map(u => (u.email === email && u.role === role) ? Object.assign({}, u, patch) : u));
 }
+// Sample (demo) students only exist in the demo batch. Every other batch only has the students who joined it.
+const sampleFor = (code) => code === SEED_CODE ? sampleMembers : [];
+const studentsOf = (code) => getUsers().filter(u => u.role === 'student' && u.classCode === code && u.status !== 'pending');
+// The batch whose data is on screen: the coordinator's current batch, or a student's own batch
+function currentBatchCode(){
+    const me = getJSON('ic_session', null) || {};
+    return me.role === 'coordinator' ? activeClassCode() : (me.classCode || activeClassCode());
+}
+// Same people as Overview / Roster / Placements: current students vs completed (alumni) of that batch
 function classCounts(code){
-    if(code === SEED_CODE) return {interns: 85, alumni: 12};   // demo numbers, same as the Overview
-    const members = getUsers().filter(u => u.role === 'student' && u.classCode === code);
+    const people = placementList(code);
     return {
-        interns: members.filter(u => ['intern', 'alumni_pending'].includes(u.status || 'intern')).length,
-        alumni: members.filter(u => u.status === 'alumni').length
+        interns: people.filter(p => !['Completed', 'Withdrawn'].includes(p.status)).length,
+        alumni: people.filter(p => p.status === 'Completed').length
     };
 }
 function memberTotal(code){
@@ -496,6 +504,7 @@ on('enterDashboardBtn', 'click', () => {
         const found = all[code];
         if(!found) return showToast('Invalid class code. Ask your coordinator for the correct one.', 'warn');
         if(found.program !== draft.Program) return showToast('This class code is for ' + found.program + ', not your program.', 'warn');
+        if((found.status || 'active') !== 'active') return showToast('This batch is ' + found.status + ' and no longer accepts new students. Ask your coordinator for a new class code.', 'warn');
         theme = found.theme;
         school = found.school || '';
     }
@@ -1098,7 +1107,7 @@ function renderClasses(){
 }
 
 if(document.getElementById('classList')){
-    renderClasses();
+    document.addEventListener('DOMContentLoaded', renderClasses);
     on('showArchived', 'change', renderClasses);
 
     document.getElementById('classList').addEventListener('click', (e) => {
@@ -1443,12 +1452,13 @@ function rosterHistory(m){
 }
 
 // Every student with their placement status
-function placementList(){
+function placementList(code){
+    code = code || currentBatchCode();
     const store = getPlacementStore();
     const out = {};
-    Object.keys(PLACEMENT_SEED).forEach(n => { out[n] = Object.assign({name: n}, PLACEMENT_SEED[n], store[n] || {}); });
-    const roster = sampleMembers.map(m => Object.assign({}, m))
-        .concat(getUsers().filter(u => u.role === 'student' && u.status !== 'pending').map(u => ({
+    if(code === SEED_CODE) Object.keys(PLACEMENT_SEED).forEach(n => { out[n] = Object.assign({name: n}, PLACEMENT_SEED[n], store[n] || {}); });
+    const roster = sampleFor(code).map(m => Object.assign({}, m))
+        .concat(studentsOf(code).map(u => ({
             real: true, email: u.email, name: u.name, company: u.company || '', hours: u.ojtHours || u.hours || 0,
             status: u.status === 'alumni_pending' ? 'intern' : (u.status || 'intern'), completedAt: u.completedAt, withdrawnAt: u.withdrawnAt})));
     roster.forEach(m => {
@@ -1504,7 +1514,7 @@ function loadRoster(){
         .map(p => Object.assign({id: 'p:' + p.name, placement: true, name: p.name, company: p.company, hours: p.hours || 0, status: 'intern'}, p.rosterPatch || {}));
     const store = getPlacementStore();
     const credited = Object.fromEntries(placementList().map(p => [p.name, p.hours]));
-    rosterMembers = real.concat(placed, sampleMembers.map(m => Object.assign({sample: true}, m, (store[m.name] || {}).rosterPatch || {})))
+    rosterMembers = real.concat(placed, sampleFor(code).map(m => Object.assign({sample: true}, m, (store[m.name] || {}).rosterPatch || {})))
         .filter(m => !isAnonymized(m.name))
         .map(m => credited[m.name] != null && m.status === 'intern' ? Object.assign(m, {hours: credited[m.name]}) : m);
 }
@@ -1768,8 +1778,9 @@ function openInternFiles(company, intern){
 
 // Interns deployed to a company (real students + sample roster)
 function internsOf(company){
-    const real = getUsers().filter(u => u.role === 'student' && u.company === company && u.status !== 'pending').map(u => u.name);
-    const sample = sampleMembers.filter(m => m.company === company).map(m => m.name);
+    const code = currentBatchCode();
+    const real = studentsOf(code).filter(u => u.company === company).map(u => u.name);
+    const sample = sampleFor(code).filter(m => m.company === company).map(m => m.name);
     const placed = placementList().filter(p => p.company === company && p.status !== 'Not placed').map(p => p.name);
     return [...new Set(real.concat(sample, placed))];
 }
@@ -2641,6 +2652,9 @@ function renderOverview(){
         + '<div class="text-[12.5px] text-slate-600 pt-1">' + i.html + '</div></a>').join('')
         : '<div class="px-5 py-6 text-[12.5px] text-slate-400 text-center">All caught up.</div>';
 
+    const activity = document.getElementById('overviewActivity');
+    if(activity && currentBatchCode() !== SEED_CODE) activity.innerHTML = '<div class="px-5 py-6 text-[12.5px] text-slate-400 text-center">No activity yet in this batch.</div>';
+
     const tasks = getAllTasks().filter(t => t.classCode === activeClassCode() && t.status !== 'archived');
     document.getElementById('overviewTasks').innerHTML = tasks.length ? tasks.map(t => {
         const pct = t.total ? Math.min(100, Math.round(t.turnedIn / t.total * 100)) : 0;
@@ -2845,7 +2859,7 @@ function renderAlumniRequestSection(){
     if(!wr && !marker) return;
     const me = currentCoordinator();
     if(me.role !== 'coordinator') return;
-    const filtered = getAlumniRequests().filter(r => r.status === 'pending' && (!r.coordinatorEmail || r.coordinatorEmail === me.email));
+    const filtered = getAlumniRequests().filter(r => r.status === 'pending' && (!r.coordinatorEmail || r.coordinatorEmail === me.email) && (!r.classCode || r.classCode === activeClassCode()));
     if(marker){
         marker.querySelector('[data-alumni-count]').textContent = '(' + filtered.length + ')';
         const list = marker.querySelector('[data-alumni-list]');
