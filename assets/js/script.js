@@ -2692,7 +2692,11 @@ function overviewMetrics(){
     const inBatch = all.filter(p => !['Completed', 'Withdrawn'].includes(p.status));
     const avg = active.length ? Math.round(active.reduce((t, p) => t + (p.hours || 0), 0) / active.length) : 0;
     const flags = active.reduce((t, p) => t + pendingFlags(p), 0);
+<<<<<<< HEAD
     const withInterns = partnerNames().filter(c => active.some(p => p.company === c)).length;
+=======
+    const withInterns = PARTNER_COMPANIES.filter(c => active.some(p => p.company === c)).length;
+>>>>>>> dd4429b23ad93ca4905829899232b536879867a5
     return {all, active, inBatch, avg, flags, withInterns};
 }
 
@@ -2766,7 +2770,11 @@ function overviewSummary(){
             ['Flagged clock-ins awaiting review', m.flags, 'Outside the geofence'],
             ['Average hours rendered', m.avg, 'Per deployed intern, of ' + REQUIRED_HOURS + ' required'],
             ['Average OJT progress (%)', pct(m.avg, REQUIRED_HOURS), ''],
+<<<<<<< HEAD
             ['Partner companies', partnerNames().length, ''],
+=======
+            ['Partner companies', PARTNER_COMPANIES.length, ''],
+>>>>>>> dd4429b23ad93ca4905829899232b536879867a5
             ['Partner companies with deployed interns', m.withInterns, '']
         ],
         pipeline: [['Stage', 'Students']].concat(PLACEMENT_STEPS.map(stage => [stage, m.all.filter(p => p.status === stage).length])),
