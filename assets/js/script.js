@@ -114,6 +114,8 @@ const DISCARD_SKIP = /search|filter|sort/i;
 const MODAL_SAVE = /^(save|submit|upload|post|publish|create|update|apply|record|confirm|done)\b/i;
 const PAGE_SAVE = /^(save|submit|resubmit|upload|post|publish|create|update|apply|record|confirm|approve|reject|request|send|grade|mark)\b/i;
 let pageDirty = false, discardBypass = false;
+// Login, sign up and forgot password move to the next page with what was typed, so nothing there is lost
+const NO_PAGE_DISCARD = /\/pages\/auth\//.test(location.pathname);
 function discardModalOf(el){ const m = el && el.closest('[id$="Modal"], [id$="modal"], .fixed.inset-0'); return m && !m.matches('[data-ask]') ? m : null; }
 function discardAsk(){ return askConfirm('You have unsaved changes. If you leave now, they will be lost.', {title: 'Discard changes?', ok: 'Discard', danger: true}); }
 function isDismissBtn(b, label){
@@ -127,7 +129,7 @@ function isDismissBtn(b, label){
     if(['button', 'submit', 'hidden'].includes(f.type) || DISCARD_SKIP.test([f.id, f.name, f.className, f.placeholder].join(' '))) return;
     const m = discardModalOf(f);
     if(m) m.dataset.dirty = '1';
-    else if(f.matches('textarea, input:not([type]), input[type=text], input[type=email], input[type=number], input[type=url], input[type=tel]')) pageDirty = true;
+    else if(!NO_PAGE_DISCARD && f.matches('textarea, input:not([type]), input[type=text], input[type=email], input[type=number], input[type=url], input[type=tel]')) pageDirty = true;
 }, true));
 new MutationObserver(list => list.forEach(r => { const t = r.target; if(t.dataset && t.dataset.dirty && t.classList.contains('hidden')) delete t.dataset.dirty; }))
     .observe(document.documentElement, {subtree: true, attributes: true, attributeFilter: ['class']});
@@ -388,6 +390,12 @@ document.querySelectorAll('#roleSwitcher .role-btn').forEach(btn => {
 });
 
 // Submit (registered accounts are checked, any other email + password still opens a demo account)
+// Enter submits the login, forgot password and sign up steps (these pages have no <form>)
+if(NO_PAGE_DISCARD) document.addEventListener('keydown', (e) => {
+    if(e.key !== 'Enter' || e.isComposing || !e.target.matches || !e.target.matches('input:not([type=checkbox]):not([type=radio]), select') || document.querySelector('[data-ask]')) return;
+    const b = ['loginSubmitBtn', 'sendResetLinkBtn', 'regNext1', 'regNext2', 'enterDashboardBtn'].map(id => document.getElementById(id)).find(x => x && !x.disabled);
+    if(b){ e.preventDefault(); b.click(); }
+});
 on('loginSubmitBtn', 'click', () => {
     const role = currentRole();
     const email = document.getElementById('loginEmail').value.trim();
