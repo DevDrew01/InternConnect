@@ -184,78 +184,11 @@
           <button data-subtab="wr-deletions" class="subtab-btn text-[12.5px] font-semibold px-3.5 py-1.5 rounded-md transition">Deletion Requests <span id="wrDeletionsCount" class="ml-1 text-[10.5px] opacity-70">(0)</span></button>
         </div>
 
-        <!-- Student Requests -->
-        <div id="wr-students" class="subtab-panel active space-y-2.5">
-          <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <div class="w-9 h-9 rounded-full bg-slate-100 text-slate-600 text-[12px] font-semibold flex items-center justify-center">MC</div>
-              <div>
-                <div class="font-semibold text-slate-900 text-sm">Mikaela Cruz</div>
-                <div class="text-[11.5px] text-slate-400">2023-0199 · requested Sept 16, 2026</div>
-              </div>
-            </div>
-            <div class="flex gap-2 flex-shrink-0">
-              <button class="join-approve text-[12px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-md transition"><i class="fa-solid fa-check mr-1"></i>Approve</button>
-              <button class="join-reject text-[12px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md transition"><i class="fa-solid fa-xmark mr-1"></i>Reject</button>
-            </div>
-          </div>
-          <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <div class="w-9 h-9 rounded-full bg-slate-100 text-slate-600 text-[12px] font-semibold flex items-center justify-center">RT</div>
-              <div>
-                <div class="font-semibold text-slate-900 text-sm">Ronan Tolentino</div>
-                <div class="text-[11.5px] text-slate-400">2023-0142 · requested Sept 16, 2026</div>
-              </div>
-            </div>
-            <div class="flex gap-2 flex-shrink-0">
-              <button class="join-approve text-[12px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-md transition"><i class="fa-solid fa-check mr-1"></i>Approve</button>
-              <button class="join-reject text-[12px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md transition"><i class="fa-solid fa-xmark mr-1"></i>Reject</button>
-            </div>
-          </div>
-          <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <div class="w-9 h-9 rounded-full bg-slate-100 text-slate-600 text-[12px] font-semibold flex items-center justify-center">BS</div>
-              <div>
-                <div class="font-semibold text-slate-900 text-sm">Bea Santiago</div>
-                <div class="text-[11.5px] text-slate-400">2023-0210 · requested Sept 15, 2026</div>
-              </div>
-            </div>
-            <div class="flex gap-2 flex-shrink-0">
-              <button class="join-approve text-[12px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-md transition"><i class="fa-solid fa-check mr-1"></i>Approve</button>
-              <button class="join-reject text-[12px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md transition"><i class="fa-solid fa-xmark mr-1"></i>Reject</button>
-            </div>
-          </div>
-        </div>
+        <!-- Student Requests (filled by script.js) -->
+        <div id="wr-students" class="subtab-panel active space-y-2.5"></div>
 
-        <!-- Partner Company Requests -->
-        <div id="wr-partners" class="subtab-panel hidden space-y-2.5">
-          <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <div class="w-9 h-9 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center"><i class="fa-solid fa-building"></i></div>
-              <div>
-                <div class="font-semibold text-slate-900 text-sm">Nexora Systems Inc.</div>
-                <div class="text-[11.5px] text-slate-400">Requested link · Ms. Karla P., HR Lead</div>
-              </div>
-            </div>
-            <div class="flex gap-2 flex-shrink-0">
-              <button class="join-approve text-[12px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-md transition"><i class="fa-solid fa-check mr-1"></i>Approve</button>
-              <button class="join-reject text-[12px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md transition"><i class="fa-solid fa-xmark mr-1"></i>Reject</button>
-            </div>
-          </div>
-          <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <div class="w-9 h-9 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center"><i class="fa-solid fa-building"></i></div>
-              <div>
-                <div class="font-semibold text-slate-900 text-sm">Cavite Digital Hub</div>
-                <div class="text-[11.5px] text-slate-400">Requested link · Mr. Ian F., Operations</div>
-              </div>
-            </div>
-            <div class="flex gap-2 flex-shrink-0">
-              <button class="join-approve text-[12px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-md transition"><i class="fa-solid fa-check mr-1"></i>Approve</button>
-              <button class="join-reject text-[12px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md transition"><i class="fa-solid fa-xmark mr-1"></i>Reject</button>
-            </div>
-          </div>
-        </div>
+        <!-- Partner Company Requests (filled by script.js) -->
+        <div id="wr-partners" class="subtab-panel hidden space-y-2.5"></div>
 
         <!-- Alumni Deletion Requests -->
         <div id="wr-deletions" class="subtab-panel hidden space-y-2.5"></div>
