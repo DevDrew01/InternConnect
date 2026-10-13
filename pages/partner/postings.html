@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InternConnect - Job Postings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../assets/css/styles.css">
+    <script src="../../assets/js/theme.js"></script>
+</head>
+
+<!-- Partner Company Portal -->
+<body class="bg-slate-100 text-slate-800" data-role="partnercompany" data-ppage="ppostings">
+
+<div class="flex min-h-screen">
+
+    <button id="mobileToggle" class="lg:hidden fixed top-3 left-3 z-50 bg-slate-900 text-white w-9 h-9 rounded-md flex items-center justify-center shadow-lg">
+        <i class="fa-solid fa-bars"></i>
+    </button>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed lg:sticky top-0 left-0 h-screen w-64 bg-slate-900 text-slate-300 flex flex-col z-40 -translate-x-full lg:translate-x-0">
+        <div class="brand-row flex items-center gap-2.5 px-5 py-5 border-b border-white/10">
+            <div class="w-9 h-9 rounded-lg flex items-center justify-center text-white flex-shrink-0">
+                <i class="fa-solid fa-link text-sm"></i>
+            </div>
+            <div class="sidebar-text min-w-0">
+                <div class="text-white font-bold text-[15px] leading-tight">InternConnect</div>
+                <div class="text-[10.5px] text-slate-400 tracking-wide">AI-Powered Internship Monitoring Platform</div>
+            </div>
+            <button id="collapseBtn" class="hidden lg:flex ml-auto w-6 h-6 rounded-md items-center justify-center text-slate-400 hover:bg-white/10 hover:text-white transition flex-shrink-0">
+                <i class="fa-solid fa-angles-left text-[11px] transition-transform"></i>
+            </button>
+            <button id="mobileCloseBtn" class="lg:hidden ml-auto w-8 h-8 rounded-md flex items-center justify-center text-slate-300 hover:bg-white/10 hover:text-white transition flex-shrink-0">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="px-5 pt-4 pb-3 group-label">
+            <div class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Partner Portal</div>
+        </div>
+
+        <nav class="flex-1 px-2 space-y-0.5">
+        <button data-tab="poverview" class="nav-link w-full flex items-center gap-3 px-4 py-2.5 rounded-r-md text-sm font-medium hover:bg-white/5 hover:text-white transition" title="Overview">
+            <i class="fa-solid fa-gauge-high w-4 text-center"></i> <span class="sidebar-text">Overview</span>
+        </button>
+        <button data-tab="ppostings" class="nav-link w-full flex items-center gap-3 px-4 py-2.5 rounded-r-md text-sm font-medium hover:bg-white/5 hover:text-white transition active" title="Job Postings">
+            <i class="fa-solid fa-briefcase w-4 text-center"></i> <span class="sidebar-text">Job Postings</span>
+        </button>
+        <button data-tab="pvault" class="nav-link w-full flex items-center gap-3 px-4 py-2.5 rounded-r-md text-sm font-medium hover:bg-white/5 hover:text-white transition" title="Company Vault">
+            <i class="fa-solid fa-vault w-4 text-center"></i> <span class="sidebar-text">Company Vault</span>
+        </button>
+
+            <div class="group-label text-[10px] uppercase tracking-wider text-slate-500 font-semibold px-4 pt-4 pb-1">Session</div>
+            <button data-tab="logout" class="nav-link w-full flex items-center gap-3 px-4 py-2.5 rounded-r-md text-sm font-medium hover:bg-white/5 hover:text-white transition" title="Logout">
+                <i class="fa-solid fa-right-to-bracket w-4 text-center"></i> <span class="sidebar-text">Logout</span>
+            </button>
+        </nav>
+
+        <div class="px-5 py-4 border-t border-white/10 flex items-center gap-3">
+            <div data-user="avatar" class="overflow-hidden w-8 h-8 rounded-full bg-sky-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">HR</div>
+            <div class="sidebar-text min-w-0 flex-1">
+                <div data-user="name" class="text-white text-[12.5px] font-medium truncate">Partner Supervisor</div>
+                <div data-user="role" class="text-[10.5px] text-slate-400 truncate">Industry Partner</div>
+            </div>
+        </div>
+    </aside>
+
+    <div id="overlay" class="hidden fixed inset-0 bg-black/40 z-30 lg:hidden"></div>
+
+    <div class="flex-1 flex flex-col min-w-0">
+
+        <!-- Header -->
+        <header class="bg-white border-b border-slate-200 px-5 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-20">
+            <div class="flex items-center gap-3 pl-10 lg:pl-0">
+                <div class="font-bold text-slate-900">InternConnect</div>
+                <span data-user="school" class="hidden sm:inline-flex items-center gap-1.5 bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-semibold px-2.5 py-1 rounded-full">Company</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="relative">
+                    <button id="notifBtn" class="relative w-9 h-9 rounded-md flex items-center justify-center text-slate-500 hover:bg-slate-100 transition">
+                        <i class="fa-regular fa-bell"></i>
+                        <span id="pNotifDot" class="hidden absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+                    </button>
+                    <div id="notifDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden">
+                        <div class="px-4 py-3 border-b border-slate-100 font-semibold text-sm text-slate-900">Notifications</div>
+                        <div id="pNotifList" class="max-h-80 overflow-y-auto divide-y divide-slate-100"></div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 ml-1">
+                    <div data-user="avatar" class="overflow-hidden w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-xs font-semibold">HR</div>
+                    <div class="hidden lg:block">
+                        <div data-user="name" class="text-[12.5px] font-medium text-slate-900 leading-tight">Partner Supervisor</div>
+                        <div data-user="role" class="text-[10.5px] text-slate-500 leading-tight">Industry Partner</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 px-5 lg:px-8 py-6 pb-24">
+            <div id="pPostings" class="space-y-4"></div>
+        </main>
+
+        <footer id="mainFooter" class="fixed bottom-0 left-0 right-0 bg-slate-900 text-slate-300 text-[11px] text-center py-2 px-4 z-20">
+            RA 10173 Data Privacy Act Compliant
+        </footer>
+    </div>
+</div>
+
+<div id="toastContainer"></div>
+<script src="../../assets/js/script.js"></script>
+</body>
+</html>
