@@ -178,9 +178,15 @@
             <h1 class="text-xl font-bold text-slate-900">Audit Trail & Security Logs</h1>
             <p class="text-sm text-slate-500 mt-0.5">Data Privacy Act compliance activity log.</p>
           </div>
-          <button class="export-btn text-[12.5px] font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2 rounded-md transition flex items-center gap-1.5">
-            <i class="fa-solid fa-file-export"></i> Export Log
-          </button>
+          <div class="relative">
+            <button id="exportAuditBtn" type="button" aria-haspopup="true" aria-expanded="false" class="text-[12.5px] font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2 rounded-md transition flex items-center gap-1.5">
+              <i class="fa-solid fa-file-export"></i> Export Log <i class="fa-solid fa-chevron-down text-[9px] text-slate-400"></i>
+            </button>
+            <div id="exportAuditMenu" role="menu" class="hidden absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-30">
+              <button type="button" role="menuitem" data-export="xlsx" class="w-full text-left px-3.5 py-2 text-[12.5px] text-slate-700 hover:bg-slate-50 flex items-center gap-2.5"><i class="fa-solid fa-file-excel text-emerald-600 w-4 text-center"></i><span>Excel workbook <span class="text-slate-400">(.xlsx)</span></span></button>
+              <button type="button" role="menuitem" data-export="pdf" class="w-full text-left px-3.5 py-2 text-[12.5px] text-slate-700 hover:bg-slate-50 flex items-center gap-2.5"><i class="fa-solid fa-file-pdf text-red-500 w-4 text-center"></i><span>PDF report <span class="text-slate-400">(.pdf)</span></span></button>
+            </div>
+          </div>
         </div>
 
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -197,34 +203,6 @@
               </tr>
             </thead>
             <tbody id="auditTbody" class="divide-y divide-slate-100 text-[12.5px]">
-              <tr>
-                <td class="px-5 py-3 text-slate-500 font-mono text-[11.5px]">2026-09-15 17:42:03</td>
-                <td class="px-5 py-3 text-slate-600">coord-jdc-001</td>
-                <td class="px-5 py-3 text-slate-700">Approved Resume Bullet for Student #2023-0012</td>
-                <td class="px-5 py-3 text-slate-500 font-mono text-[11.5px]">203.177.**.**</td>
-                <td class="px-5 py-3"><span class="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Success</span></td>
-              </tr>
-              <tr>
-                <td class="px-5 py-3 text-slate-500 font-mono text-[11.5px]">2026-09-15 17:20:51</td>
-                <td class="px-5 py-3 text-slate-600">coord-jdc-001</td>
-                <td class="px-5 py-3 text-slate-700">Verified Daily Log Sign-off for Student #2023-0141</td>
-                <td class="px-5 py-3 text-slate-500 font-mono text-[11.5px]">203.177.**.**</td>
-                <td class="px-5 py-3"><span class="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Verified</span></td>
-              </tr>
-              <tr>
-                <td class="px-5 py-3 text-slate-500 font-mono text-[11.5px]">2026-09-15 09:03:14</td>
-                <td class="px-5 py-3 text-slate-600">system-auto</td>
-                <td class="px-5 py-3 text-slate-700">Flagged Student #2023-0172 — 3 consecutive missed logs</td>
-                <td class="px-5 py-3 text-slate-500 font-mono text-[11.5px]">internal</td>
-                <td class="px-5 py-3"><span class="text-[11px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Flagged</span></td>
-              </tr>
-              <tr>
-                <td class="px-5 py-3 text-slate-500 font-mono text-[11.5px]">2026-09-14 14:55:37</td>
-                <td class="px-5 py-3 text-slate-600">coord-jdc-001</td>
-                <td class="px-5 py-3 text-slate-700">Exported BSCS Summary Report (PDF)</td>
-                <td class="px-5 py-3 text-slate-500 font-mono text-[11.5px]">203.177.**.**</td>
-                <td class="px-5 py-3"><span class="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Success</span></td>
-              </tr>
             </tbody>
           </table>
           </div>
@@ -243,6 +221,10 @@
 <!-- Toast Container -->
 <div id="toastContainer"></div>
 
+<!-- SheetJS + jsPDF/AutoTable: build the Excel and PDF of Export Log (this page only) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.31/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="../../assets/js/script.js"></script>
 </body>
 </html>
