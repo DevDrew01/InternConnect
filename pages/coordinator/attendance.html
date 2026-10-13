@@ -182,9 +182,15 @@
             <button id="holidaysBtn" class="text-[12.5px] font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2 rounded-md transition flex items-center gap-1.5">
               <i class="fa-solid fa-calendar-xmark"></i> Holidays &amp; no-work days <span id="holidaysCount" class="text-[11px] font-medium text-slate-400"></span>
             </button>
-            <button class="export-btn text-[12.5px] font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2 rounded-md transition flex items-center gap-1.5">
-              <i class="fa-solid fa-file-export"></i> Export (PDF/Excel)
-            </button>
+            <div class="relative">
+              <button id="exportAttBtn" type="button" aria-haspopup="true" aria-expanded="false" class="text-[12.5px] font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2 rounded-md transition flex items-center gap-1.5">
+                <i class="fa-solid fa-file-export"></i> Export <i class="fa-solid fa-chevron-down text-[9px] text-slate-400"></i>
+              </button>
+              <div id="exportAttMenu" role="menu" class="hidden absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-30">
+                <button type="button" role="menuitem" data-export="xlsx" class="w-full text-left px-3.5 py-2 text-[12.5px] text-slate-700 hover:bg-slate-50 flex items-center gap-2.5"><i class="fa-solid fa-file-excel text-emerald-600 w-4 text-center"></i><span>Excel workbook <span class="text-slate-400">(.xlsx)</span></span></button>
+                <button type="button" role="menuitem" data-export="pdf" class="w-full text-left px-3.5 py-2 text-[12.5px] text-slate-700 hover:bg-slate-50 flex items-center gap-2.5"><i class="fa-solid fa-file-pdf text-red-500 w-4 text-center"></i><span>PDF report <span class="text-slate-400">(.pdf)</span></span></button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -201,9 +207,7 @@
             <option value="Remote">Remote</option>
             <option value="Hybrid">Hybrid</option>
           </select>
-          <span class="flex items-center gap-1.5 text-[11.5px] font-semibold text-slate-500 bg-slate-100 px-3 py-2 rounded-md">
-            <i class="fa-solid fa-lock text-[10px]"></i> Program: BSCS
-          </span>
+          <span id="attProgram" class="flex items-center gap-1.5 text-[11.5px] font-semibold text-slate-500 bg-slate-100 px-3 py-2 rounded-md">Program: BSCS</span>
         </div>
 
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -244,6 +248,10 @@
 <!-- Toast Container -->
 <div id="toastContainer"></div>
 
+<!-- SheetJS + jsPDF/AutoTable: build the Excel and PDF of Export (this page only) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.31/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="../../assets/js/script.js"></script>
 </body>
 </html>
