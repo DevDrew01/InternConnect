@@ -777,8 +777,20 @@ const TASK_SEED = [
     {id: 'midterm', classCode: SEED_CODE, title: 'Mid-term Self-Assessment Form', instructions: 'Reflect on your progress so far and identify areas for growth.',
      dueDate: '2026-09-12', dueTime: '23:59', maxPoints: 50, repeat: '', template: null, attachments: [], status: 'open', turnedIn: 85, total: 85, approvedLogs: 1}
 ];
-const getAllTasks = () => (getJSON(TASK_KEY, null) || TASK_SEED.map(t => Object.assign({}, t)))
-    .map(t => Object.assign({attachments: []}, t, {template: t.template !== undefined ? t.template : t.attachment}));
+const getAllTasks = () => {
+    const students = {};   // students of each batch, counted once per call
+    return (getJSON(TASK_KEY, null) || TASK_SEED.map(t => Object.assign({}, t)))
+        .map(t => Object.assign({attachments: []}, t, {template: t.template !== undefined ? t.template : t.attachment}))
+        .map(t => liveTaskCounts(t, students));
+};
+// The two sample tasks keep their sample numbers. Every other task counts the real submissions
+// against the students who are in its batch right now (so students who join later are counted too).
+function liveTaskCounts(t, students){
+    if(TASK_SEED.some(x => x.id === t.id)) return t;
+    if(!(t.classCode in students)) students[t.classCode] = classCounts(t.classCode).interns;
+    const turnedIn = new Set((getJSON(SUB_KEY, {})[t.id] || []).map(x => x.name)).size;
+    return Object.assign(t, {turnedIn, total: Math.max(students[t.classCode], turnedIn)});
+}
 const saveAllTasks = (list) => localStorage.setItem(TASK_KEY, JSON.stringify(list));
 const findTask = (id) => getAllTasks().find(t => t.id === id) || null;
 function updateTask(id, patch){ saveAllTasks(getAllTasks().map(t => t.id === id ? Object.assign({}, t, patch) : t)); }
@@ -971,9 +983,11 @@ if(document.getElementById('taskList')){
     });
     document.addEventListener('click', closeTaskMenus);
     document.querySelectorAll('.task-filter').forEach(b => b.addEventListener('click', () => { taskFilter = b.dataset.filter; renderTasks(); }));
-    renderTasks();
-    const editId = new URLSearchParams(window.location.search).get('edit');
-    if(editId && findTask(editId)) openTaskModal(findTask(editId));
+    document.addEventListener('DOMContentLoaded', () => {
+        renderTasks();
+        const editId = new URLSearchParams(window.location.search).get('edit');
+        if(editId && findTask(editId)) openTaskModal(findTask(editId));
+    });
 }
 
 
@@ -1047,7 +1061,9 @@ const SUB_CLASS = {'Pending Review': 'text-amber-600 bg-amber-50 border-amber-20
 function taskSubmissions(id){
     const saved = getJSON(SUB_KEY, {})[id] || [], st = getJSON(SUB_STATUS_KEY, {});
     const seed = ((taskData[id] || {}).submissions || []).filter(x => !saved.some(y => y.name === x.name));
-    return seed.concat(saved.map(x => Object.assign({}, x, {meta: formatDate(x.date) + ' · ' + (x.company || 'Not placed')}))).map(x => {
+    const due = ((getJSON(TASK_KEY, null) || TASK_SEED).find(x => x.id === id) || {}).dueDate;
+    const isLate = (x) => !!(due && x.date && x.date > due);
+    return seed.concat(saved.map(x => Object.assign({}, x, {late: isLate(x), meta: formatDate(x.date) + ' · ' + (x.company || 'Not placed') + (isLate(x) ? ' · Late' : '')}))).map(x => {
         const r = st[id + '|' + x.name], status = r ? r.status : x.status;
         return Object.assign({}, x, {status, feedback: r ? r.feedback : x.feedback, statusClass: SUB_CLASS[status] || x.statusClass});
     });
@@ -1081,6 +1097,7 @@ function gradeText(taskId, name){
     const g = getGrades()[gradeKey(taskId, name)];
     return g ? ' · Graded ' + g.score + '/' + taskInfo(taskId).maxPoints : '';
 }
+const subLine = (taskId, sub) => sub.status + (sub.late ? ' · Late' : '') + gradeText(taskId, sub.name);
 
 let currentTaskId = 'week5';
 let currentSubIndex = 0;
@@ -1126,7 +1143,7 @@ function renderTaskDetail(taskId){
     t.submissions.forEach((sub, i) => {
       const item = document.createElement('div');
       item.className = 'log-item border rounded-lg px-3 py-2.5 cursor-pointer ' + (i === 0 ? 'border-sky-300 bg-sky-50' : 'border-slate-200 hover:bg-slate-50');
-      item.innerHTML = '<div class="text-[12.5px] font-semibold text-slate-900">' + sub.name + '</div><div class="text-[10.5px] text-slate-400">' + sub.status + gradeText(taskId, sub.name) + '</div>';
+      item.innerHTML = '<div class="text-[12.5px] font-semibold text-slate-900">' + esc(sub.name) + '</div><div class="text-[10.5px] text-slate-400">' + esc(subLine(taskId, sub)) + '</div>';
       item.addEventListener('click', () => {
         document.querySelectorAll('#taskSubmissionsList .log-item').forEach(el => { el.classList.remove('border-sky-300','bg-sky-50'); el.classList.add('border-slate-200'); });
         item.classList.remove('border-slate-200'); item.classList.add('border-sky-300','bg-sky-50');
@@ -1134,6 +1151,13 @@ function renderTaskDetail(taskId){
       });
       list.appendChild(item);
     });
+    // Who has not turned in yet (only for real tasks: the sample tasks have sample numbers)
+    const task = findTask(taskId);
+    if(task && !TASK_SEED.some(x => x.id === taskId)){
+        const sent = new Set(t.submissions.map(x => x.name));
+        const missing = placementList(task.classCode).filter(p => !['Completed', 'Withdrawn'].includes(p.status) && !sent.has(p.name)).map(p => p.name).sort();
+        if(missing.length) list.insertAdjacentHTML('beforeend', '<div class="px-2 pt-3 mt-1 border-t border-slate-100"><div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Not turned in (' + missing.length + ')</div><div class="text-[12px] text-slate-500 leading-relaxed">' + missing.map(esc).join(', ') + '</div></div>');
+    }
     const statusEl = document.getElementById('taskDetailStatus');
     const status = t.status && t.status !== 'open' ? TASK_STATUS[t.status] : null;
     statusEl.classList.toggle('hidden', !status);
@@ -1145,9 +1169,19 @@ function renderTaskDetail(taskId){
 }
 
 // Load The Task From The Link (task-detail.html?task=week5)
+function showTaskMissing(){
+    document.getElementById('taskDetailTitle').textContent = 'Task not found';
+    document.getElementById('taskDetailInstructions').textContent = "This task isn't in your current batch. It may have been deleted, or it belongs to another batch (switch batches on the Classwork page).";
+    ['taskDetailDue', 'taskDetailAttachment', 'taskDetailAttachList', 'taskDetailCount', 'taskDetailStatus', 'td-editTaskBtn', 'taskSplit', 'taskNoSubs']
+        .forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
+}
 if(document.getElementById('taskSubmissionsList')){
-    const taskFromLink = new URLSearchParams(window.location.search).get('task');
-    renderTaskDetail(taskFromLink && (findTask(taskFromLink) || taskData[taskFromLink]) ? taskFromLink : 'week5');
+    document.addEventListener('DOMContentLoaded', () => {   // after the whole script is loaded (live counts read the roster)
+        const id = new URLSearchParams(window.location.search).get('task');
+        const t = id && findTask(id);
+        if(t && t.classCode === activeClassCode()) renderTaskDetail(id);
+        else showTaskMissing();
+    });
 }
 
 on('backToClassworkBtn', 'click', () => goTo('classwork'));
@@ -1194,16 +1228,83 @@ on('td-saveGradeBtn', 'click', () => {
     grades[gradeKey(currentTaskId, sub.name)] = {score, feedback: document.getElementById('gradeFeedback').value.trim()};
     localStorage.setItem('ic_grades', JSON.stringify(grades));
     const item = document.querySelectorAll('#taskSubmissionsList .log-item')[currentSubIndex];
-    if(item) item.lastChild.textContent = sub.status + gradeText(currentTaskId, sub.name);
+    if(item) item.lastChild.textContent = subLine(currentTaskId, sub);
     showToast('Grade saved: ' + sub.name + ' got ' + score + '/' + t.maxPoints + '.', 'success');
 });
+// One accomplishment report as PDF or Word. The Word file is a .doc (HTML that Word, LibreOffice and Google Docs open).
+function currentReport(){
+    const t = taskInfo(currentTaskId), sub = t.submissions[currentSubIndex];
+    return {t, sub, grade: getGrades()[gradeKey(currentTaskId, sub.name)]};
+}
+const reportName = (r, ext) => 'Accomplishment_Report_' + fileSlug(r.sub.name) + '_' + fileSlug(r.t.title) + '.' + ext;
+const cleanText = (text) => String(text || '').replace(/\t/g, '    ');
+function saveFile(filename, blob){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
 on('td-genPdfBtn', 'click', () => {
-    const sub = taskInfo(currentTaskId).submissions[currentSubIndex];
-    showToast('Generating PDF of ' + sub.name + "'s accomplishment report...", 'info');
+    const lib = window.jspdf && window.jspdf.jsPDF;
+    if(!lib){ showToast('The PDF library could not load (are you offline?). Try the Word option instead.', 'warn'); return; }
+    const r = currentReport(), doc = new lib({unit: 'pt', format: 'a4'});
+    const css = getComputedStyle(document.documentElement);
+    const rgb = (name, fallback) => { const h = css.getPropertyValue(name).trim().replace('#', ''); return /^[0-9a-f]{6}$/i.test(h) ? [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)) : fallback; };
+    const dark = rgb('--bd', [15, 23, 42]), accent = rgb('--b600', [2, 132, 199]);
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 48, width = W - M * 2;
+    doc.setFillColor(...dark); doc.rect(0, 0, W, 78, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
+    doc.text(doc.splitTextToSize(r.t.title, width)[0], M, 36);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    doc.text('Accomplishment report  |  ' + r.sub.name, M, 56);
+    let y = 108;
+    const line = (text, size, bold, color, gap) => {
+        doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(size); doc.setTextColor(...color);
+        doc.splitTextToSize(cleanText(text), width).forEach(l => {
+            if(y > H - 56){ doc.addPage(); y = M; doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(size); doc.setTextColor(...color); }
+            doc.text(l, M, y); y += size * 1.45;
+        });
+        y += gap || 0;
+    };
+    line(r.sub.meta || '', 10, false, [100, 116, 139], 4);
+    line('Status: ' + r.sub.status + (r.sub.late ? ' (late)' : ''), 10, true, [30, 41, 59], 14);
+    line('ACCOMPLISHMENT REPORT', 9, true, accent, 2);
+    line(r.sub.raw || '', 11, false, [30, 41, 59], 14);
+    line('RESUME BULLET', 9, true, accent, 2);
+    line(r.sub.bullet || '', 11, false, [30, 41, 59], 14);
+    if(r.grade || r.sub.feedback){
+        line('GRADE AND FEEDBACK', 9, true, accent, 2);
+        if(r.grade) line('Grade: ' + r.grade.score + ' / ' + r.t.maxPoints, 11, true, [30, 41, 59], 2);
+        const fb = r.sub.feedback || (r.grade && r.grade.feedback);
+        if(fb) line(fb, 11, false, [30, 41, 59], 0);
+    }
+    const pages = doc.getNumberOfPages();
+    for(let i = 1; i <= pages; i++){
+        doc.setPage(i); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120, 130, 145);
+        doc.text('InternConnect  |  ' + todayISO(), M, H - 24); doc.text('Page ' + i + ' of ' + pages, W - M, H - 24, {align: 'right'});
+    }
+    doc.save(reportName(r, 'pdf'));
+    logAudit('Exported the accomplishment report of ' + r.sub.name + ' (' + r.t.title + ') as PDF');
+    showToast('PDF of ' + r.sub.name + "'s report downloaded.", 'success');
 });
 on('td-genWordBtn', 'click', () => {
-    const sub = taskInfo(currentTaskId).submissions[currentSubIndex];
-    showToast('Generating Word document of ' + sub.name + "'s accomplishment report...", 'info');
+    const r = currentReport();
+    const para = (text) => esc(cleanText(text)).replace(/\r?\n/g, '<br>').replace(/ {2,}/g, m => '&nbsp;'.repeat(m.length));
+    const fb = r.sub.feedback || (r.grade && r.grade.feedback);
+    const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>' + esc(r.t.title) + '</title></head>'
+        + '<body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1e293b">'
+        + '<h1 style="font-size:18pt;margin-bottom:2pt">' + esc(r.t.title) + '</h1>'
+        + '<p style="color:#64748b;margin-top:0">Accomplishment report &middot; ' + esc(r.sub.name) + '<br>' + esc(r.sub.meta || '') + '<br><b>Status:</b> ' + esc(r.sub.status) + (r.sub.late ? ' (late)' : '') + '</p>'
+        + '<h3 style="color:#0369a1;font-size:10pt">ACCOMPLISHMENT REPORT</h3><p>' + para(r.sub.raw) + '</p>'
+        + '<h3 style="color:#0369a1;font-size:10pt">RESUME BULLET</h3><p>' + para(r.sub.bullet) + '</p>'
+        + (r.grade || fb ? '<h3 style="color:#0369a1;font-size:10pt">GRADE AND FEEDBACK</h3>' + (r.grade ? '<p><b>Grade:</b> ' + esc(r.grade.score) + ' / ' + esc(r.t.maxPoints) + '</p>' : '') + (fb ? '<p>' + para(fb) + '</p>' : '') : '')
+        + '<p style="color:#94a3b8;font-size:8pt">Generated by InternConnect on ' + esc(todayISO()) + '</p></body></html>';
+    saveFile(reportName(r, 'doc'), new Blob(['\ufeff', html], {type: 'application/msword'}));
+    logAudit('Exported the accomplishment report of ' + r.sub.name + ' (' + r.t.title + ') as Word');
+    showToast('Word file of ' + r.sub.name + "'s report downloaded.", 'success');
 });
 
 
