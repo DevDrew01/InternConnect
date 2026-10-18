@@ -897,7 +897,7 @@ on('cancelTaskBtn', 'click', () => taskModal.classList.add('hidden'));
 on('repeatToggle', 'change', function(){
     document.getElementById('repeatIntervalRow').classList.toggle('hidden', !this.checked);
 });
-on('postTaskBtn', 'click', () => {
+on('postTaskBtn', 'click', async () => {
     const title = document.getElementById('taskTitleInput').value.trim();
     if(!title){ showToast('Enter a task title.', 'warn'); return; }
     const maxPoints = Number(document.getElementById('taskMaxPoints').value);
@@ -910,9 +910,17 @@ on('postTaskBtn', 'click', () => {
         repeat: document.getElementById('repeatToggle').checked ? document.getElementById('taskRepeatSelect').value : ''
     };
     const tpl = document.getElementById('taskTemplate').files;
-    if(tpl.length) fields.template = tpl[0].name;
     const att = document.getElementById('taskAttachments').files;
-    if(att.length) fields.attachments = [...att].map(f => f.name);
+    const selected = [...tpl, ...att];
+    if(selected.some(file => file.size > 750000) || selected.reduce((sum, file) => sum + file.size, 0) > 2000000){
+        showToast('Task files must be under 750 KB each and 2 MB together.', 'warn');
+        return;
+    }
+    const fileData = file => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file); });
+    try {
+        if(tpl.length){ fields.template = tpl[0].name; fields.templateData = await fileData(tpl[0]); }
+        if(att.length){ fields.attachments = [...att].map(file => file.name); fields.attachmentData = await Promise.all([...att].map(fileData)); }
+    } catch(e){ showToast('Could not read the selected task files. Please try again.', 'warn'); return; }
     if(editingTaskId){
         updateTask(editingTaskId, fields);
         showToast('"' + esc(title) + '" updated.', 'success');
@@ -1419,6 +1427,18 @@ if(document.getElementById('classList')){
 // { company: { folders: [{id, name, parent, system, intern}], files: [{id, name, folder, type, owner, uploadedAt, version, pending}] } }
 // Letters are made and signed outside the system; the vault only keeps and shares the signed scans.
 const VAULT_KEY = 'ic_vault';
+function readPrototypeFile(file){
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+function downloadPrototypeFile(file){
+    if(!file?.data){ showToast('This older record saved the file name only. Upload the file again to download it.', 'warn'); return; }
+    const a = document.createElement('a'); a.href = file.data; a.download = file.name || 'Document'; a.click();
+}
 const VAULT_TYPES = ['MOA / MOU', 'Endorsement letter', 'Acceptance letter', 'Supervisor evaluation', 'DTR / attendance', 'Company document', 'Other'];
 // Sample partner companies only exist in the demo batch. Other batches only have the partners the coordinator added or approved.
 const PARTNER_COMPANIES = ['Brightpath Software', 'Verano Digital Studio', 'Nova Retail Systems', 'Cavite Provincial IT Office'];
@@ -1656,8 +1676,8 @@ function internAttendance(p){
     }
     const liveOut = Object.keys(live).sort().reverse().map(date => {
         const l = live[date], onSched = sched.days.includes(new Date(date + 'T00:00:00').getDay()), remote = mode === 'Remote';
-        const status = l.out == null ? 'Clocked in' : !onSched ? 'Outside schedule' : !remote && l.dist > site.radius ? 'Flagged' : l.in > start + sched.grace ? 'Late' : 'Present';
-        return {date, timeIn: l.in, timeOut: l.out, hours: l.hours || 0, lat: l.lat, lng: l.lng, dist: remote ? null : l.dist, remote, live: true, photoIn: l.photoIn,
+        const status = l.out == null ? 'Clocked in' : !onSched ? 'Outside schedule' : !remote && (l.dist > site.radius || l.distOut > site.radius) ? 'Flagged' : l.in > start + sched.grace ? 'Late' : 'Present';
+        return {date, timeIn: l.in, timeOut: l.out, hours: l.hours || 0, lat: l.lat, lng: l.lng, dist: remote ? null : l.dist, latOut: l.latOut, lngOut: l.lngOut, distOut: remote ? null : l.distOut, remote, live: true, photoIn: l.photoIn, photoOut: l.photoOut,
             radius: site.radius, place: remote ? 'Remote (work from home)' : site.place, status, review: reviews[p.name + '|' + date] || ''};
     });
     const notes = getJSON(ATT_NOTES_KEY, {});
@@ -1669,7 +1689,8 @@ const pendingExcuses = (p) => internAttendance(p).filter(r => r.status === 'Abse
 
 // Placeholder for the live camera capture, stamped with the server time and GPS point
 function clockPhoto(p, rec, kind){
-    if(rec.live && rec.photoIn) return rec.photoIn;
+    if(rec.live && (kind === 'out' ? rec.photoOut : rec.photoIn)) return kind === 'out' ? rec.photoOut : rec.photoIn;
+    if(rec.live) return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="150"><rect width="120" height="150" fill="#f1f5f9"/><text x="60" y="78" text-anchor="middle" font-family="Arial" font-size="12" fill="#64748b">No photo</text></svg>');
     const rand = seededRandom(p.name + rec.date + kind);
     const bg = Math.floor(rand() * 360), shirt = Math.floor(rand() * 360), skin = 55 + Math.floor(rand() * 20);
     const stamp = formatDate(rec.date) + ' ' + fmtClock(kind === 'in' ? rec.timeIn : rec.timeOut);
@@ -2386,7 +2407,7 @@ if(vaultModal){
         const file = v.files.find(f => f.id === fileBtn.dataset.id);
         if(!file) return;
         const act = fileBtn.dataset.fileAct;
-        if(act === 'download'){ showToast('Downloading "' + file.name + '"…', 'info'); return; }
+        if(act === 'download'){ downloadPrototypeFile(file); return; }
         if(act === 'replace'){ replaceTargetId = file.id; document.getElementById('vaultReplaceInput').click(); return; }
         if(act === 'rename'){
             const name = (await askInput('Rename file', file.name) || '').trim();
@@ -2418,13 +2439,17 @@ if(vaultModal){
         renderVault();
     });
 
-    on('vaultReplaceInput', 'change', (e) => {
+    on('vaultReplaceInput', 'change', async (e) => {
         const picked = e.target.files[0];
         e.target.value = '';
         if(!picked || !replaceTargetId) return;
+        if(picked.size > 1500000){ showToast('Choose a file under 1.5 MB.', 'warn'); return; }
+        let data;
+        try { data = await readPrototypeFile(picked); } catch(err){ showToast('Could not read the file. Please try again.', 'warn'); return; }
         updateVault(vaultCompany, vt => {
             const f = vt.files.find(x => x.id === replaceTargetId);
-            Object.assign(f, {name: picked.name, version: f.version + 1, uploadedAt: todayISO()});
+            f.history = (f.history || []).concat({name: f.name, data: f.data || '', version: f.version, uploadedAt: f.uploadedAt});
+            Object.assign(f, {name: picked.name, data, version: f.version + 1, uploadedAt: todayISO()});
             if(f.unlocked === VAULT_ME) delete f.unlocked;
         });
         replaceTargetId = null;
@@ -2456,13 +2481,16 @@ if(vaultModal){
     });
     on('vaultUploadFolder', 'change', (e) => { document.getElementById('vaultUploadType').value = defaultTypeFor(ensureVault(vaultCompany), e.target.value); });
     on('vaultUploadCancel', 'click', () => document.getElementById('vaultUploadForm').classList.add('hidden'));
-    on('vaultUploadSave', 'click', () => {
+    on('vaultUploadSave', 'click', async () => {
         const input = document.getElementById('vaultFileInput');
         const picked = input.files[0];
         if(!picked){ showToast('Choose the signed scan to upload first.', 'warn'); return; }
+        if(picked.size > 1500000){ showToast('Choose a file under 1.5 MB.', 'warn'); return; }
+        let data;
+        try { data = await readPrototypeFile(picked); } catch(err){ showToast('Could not read the file. Please try again.', 'warn'); return; }
         const folder = document.getElementById('vaultUploadFolder').value;
         const type = document.getElementById('vaultUploadType').value;
-        updateVault(vaultCompany, vt => { vt.files.push({id: vaultId(), name: picked.name, folder, type, owner: VAULT_ME, uploadedAt: todayISO(), version: 1}); });
+        updateVault(vaultCompany, vt => { vt.files.push({id: vaultId(), name: picked.name, data, folder, type, owner: VAULT_ME, uploadedAt: todayISO(), version: 1}); });
         if(VAULT_ME === 'hr') logAudit('Partner HR uploaded ' + picked.name + ' (' + type + ') to ' + folderLabel(ensureVault(vaultCompany), folder), 'Pending');
         input.value = '';
         document.getElementById('vaultUploadForm').classList.add('hidden');
@@ -2703,17 +2731,20 @@ function scheduleCard(p, deployed){
 function showClockPhoto(p, date, kind){
     const r = internAttendance(p).find(x => x.date === date);
     if(!r) return;
+    const lat = kind === 'out' && r.latOut ? r.latOut : r.lat;
+    const lng = kind === 'out' && r.lngOut ? r.lngOut : r.lng;
+    const distance = kind === 'out' && r.distOut != null ? r.distOut : r.dist;
     const row = (label, value) => '<div class="flex justify-between gap-3 py-1.5 text-[12.5px]"><span class="text-slate-500">' + label + '</span><span class="text-slate-800 text-right">' + value + '</span></div>';
     document.getElementById('attPhotoTitle').textContent = (kind === 'in' ? 'Clock-in' : 'Clock-out') + ' · ' + formatDate(date);
     document.getElementById('attPhotoBody').innerHTML = '<div class="flex gap-4">'
         + '<img src="' + clockPhoto(p, r, kind) + '" alt="Live camera photo" class="w-32 h-40 rounded-lg object-cover border border-slate-200 flex-shrink-0">'
         + '<div class="flex-1 min-w-0 divide-y divide-slate-100">'
         + row('Intern', esc(p.name))
-        + row('Server timestamp', formatDate(date) + ' ' + fmtClock(kind === 'in' ? r.timeIn : r.timeOut))
+        + row('Recorded time', formatDate(date) + ' ' + fmtClock(kind === 'in' ? r.timeIn : r.timeOut))
         + row('Photo', 'Live camera capture')
         + row('Location', r.remote ? 'Remote (work from home)' : esc(r.place))
-        + row('GPS', '<a target="_blank" rel="noopener" class="text-sky-600 hover:underline" href="https://www.google.com/maps?q=' + r.lat + ',' + r.lng + '">' + r.lat + ', ' + r.lng + '</a>')
-        + row('Geofence', r.remote ? 'Not required (remote day)' : r.dist > (r.radius || GEOFENCE_M) ? '<span class="text-red-600 font-medium">Outside · ' + r.dist + ' m away</span>' : '<span class="text-emerald-700 font-medium">Inside · ' + r.dist + ' m away</span>')
+        + row('GPS', lat && lng ? '<a target="_blank" rel="noopener" class="text-sky-600 hover:underline" href="https://www.google.com/maps?q=' + lat + ',' + lng + '">' + lat + ', ' + lng + '</a>' : 'Not recorded')
+        + row('Geofence', r.remote ? 'Not required (remote day)' : distance > (r.radius || GEOFENCE_M) ? '<span class="text-red-600 font-medium">Outside · ' + distance + ' m away</span>' : '<span class="text-emerald-700 font-medium">Inside · ' + distance + ' m away</span>')
         + row('Hours that day', r.hours + ' hrs')
         + '</div></div>';
     openModal(document.getElementById('attPhotoModal'));
@@ -3377,13 +3408,17 @@ function processAlumniRequest(email, action){
     if(!req) return;
     if(action === 'approve'){
         const student = getUsers().find(u => u.role === 'student' && u.email === email) || {};
-        if(!hasDoc(student.company, student.name, 'Supervisor evaluation')){
+        const placement = placementList(req.classCode || student.classCode).find(p => p.email === email || p.name === student.name);
+        if(!placement || placement.hours < REQUIRED_HOURS || !['Hours complete', 'Completed'].includes(placement.status)){
+            showToast(req.studentName + ' has not completed the required OJT hours.', 'warn');
+            return;
+        }
+        if(!hasDoc(placement.company, placement.name, 'Supervisor evaluation')){
             showToast('Upload the signed supervisor evaluation of ' + esc(req.studentName) + ' to their vault folder first.', 'warn');
             return;
         }
         updateUser(email, 'student', {status:'alumni', alumniApprovedAt: todayISO(), completedAt: todayISO(), employment: 'seeking'});
-        const pl = getPlacementStore()[student.name];
-        if(pl) savePlacement(student.name, {status: 'Completed', history: (pl.history || []).concat({status: 'Completed', date: todayISO()})});
+        savePlacement(placement.name, {status: 'Completed', history: (placement.history || []).concat({status: 'Completed', date: todayISO()})});
         req.status = 'approved';
         req.approvedAt = new Date().toISOString();
         saveAlumniRequests(requests);
@@ -3452,7 +3487,13 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
 
   function isAlumni(user){ return !!user && (user.status === 'alumni'); }
   function isPending(user){ return !!user && user.status === 'alumni_pending'; }
-  function hasCompletedOJT(user){ return ojtHours(user) >= REQUIRED_OJT_HOURS; }
+  function hasCompletedOJT(user){
+    if(!user) return false;
+    const placement = placementList(user.classCode || SEED_CODE).find(p =>
+      (user.email && p.email === user.email) || p.name === user.name);
+    return !!placement && ['Hours complete', 'Completed'].includes(placement.status)
+      && placement.hours >= REQUIRED_OJT_HOURS;
+  }
 
   function classThemeForUser(user){
     if(!user) return 'sky';
@@ -3606,6 +3647,8 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
       status: rec.status,
       name: rec.name || me.name,
       program: rec.program || me.program,
+      avatar: rec.avatar || me.avatar,
+      school: rec.school || me.school,
       theme: rec.theme || me.theme,
       classCode: rec.classCode || me.classCode,
       hours: ojtHours(rec),
@@ -3629,6 +3672,7 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
   let attendancePhoto = '';
   let attendancePosition = null;
   let timeInMoment = null;
+  let attendanceAction = 'in';
 
   function stopAttendanceCamera(){
     if(attendanceStream){
@@ -3673,6 +3717,9 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     if(!pl || !['Deployed', 'Hours complete'].includes(pl.status)) return toast('Time In opens after your coordinator confirms your deployment.', 'warn');
     if((liveRecs(user.name)[todayISO()] || {}).in != null) return toast('You already timed in today.', 'info');
 
+    attendanceAction = 'in';
+    attendancePhoto = '';
+    attendancePosition = null;
     show('attendancePermissionModal');
   }
 
@@ -3690,10 +3737,11 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     const previewWrap = document.getElementById('timeInPhotoPreview');
     const img = document.getElementById('timeInPhoto');
     if(!video || !canvas || !video.videoWidth) return toast('Camera is not ready yet. Please wait a moment.', 'warn');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const scale = Math.min(1, 480 / video.videoWidth);
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    attendancePhoto = canvas.toDataURL('image/jpeg', 0.82);
+    attendancePhoto = canvas.toDataURL('image/jpeg', 0.55);
     if(img){ img.src = attendancePhoto; }
     if(previewWrap){ previewWrap.classList.remove('hidden'); previewWrap.classList.add('flex'); }
     document.getElementById('captureAttendancePhotoBtn')?.classList.add('hidden');
@@ -3717,6 +3765,23 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
   function confirmTimeIn(){
     if(!attendancePhoto) return toast('Capture an attendance photo first.', 'warn');
     if(!attendancePosition) return toast('Your location could not be verified. Allow location access and try again.', 'warn');
+    if(attendanceAction === 'out'){
+      const me = session() || {};
+      const today = liveRecs(me.name)[todayISO()] || {};
+      if(today.in == null || today.out != null) return toast('There is no open Time In for today.', 'warn');
+      const timeOutMoment = new Date();
+      const hrs = saveLiveClock(me.name, 'out', attendancePhoto, attendancePosition);
+      stopAttendanceCamera();
+      hide('attendanceCameraModal');
+      hide('timeInConfirmation');
+      show('timeOutConfirmation');
+      const stamp = document.getElementById('timeOutStamp');
+      if(stamp) stamp.textContent = timeOutMoment.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      const total = document.getElementById('hoursTotal');
+      if(total) total.textContent = hrs;
+      toast('Time Out recorded with your attendance photo and location.', 'success');
+      return;
+    }
     timeInMoment = new Date();
     saveLiveClock(getJSON('ic_session', {}).name, 'in', attendancePhoto, attendancePosition);
     stopAttendanceCamera();
@@ -3737,16 +3802,15 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     const me = getJSON('ic_session', {}), today = liveRecs(me.name)[todayISO()] || {};
     if(today.in == null) return toast('Please Time In first.', 'warn');
     if(today.out != null) return toast('You already timed out today.', 'info');
-    const timeOutMoment = new Date();
-    hide('timeInConfirmation');
-    const out = document.getElementById('timeOutConfirmation');
-    if(out){ out.classList.remove('hidden'); out.classList.add('flex'); }
-    const stamp = document.getElementById('timeOutStamp');
-    if(stamp) stamp.textContent = timeOutMoment.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-    const hrs = saveLiveClock(me.name, 'out', '', attendancePosition);
-    const total = document.getElementById('hoursTotal');
-    if(total) total.textContent = hrs;
-    toast('Time Out recorded — hours logged for today.', 'success');
+    attendanceAction = 'out';
+    attendancePhoto = '';
+    attendancePosition = null;
+    const confirm = document.getElementById('confirmAttendancePhotoBtn');
+    if(confirm) confirm.textContent = 'Confirm Time Out';
+    const message = document.querySelector('#attendancePermissionModal p');
+    if(message) message.textContent = 'To record Time Out, InternConnect needs a live attendance photo and your current location. Your browser may show permission prompts next.';
+    retakeAttendancePhoto();
+    show('attendancePermissionModal');
   }
 
   // Sample attendance for September 2026. The same data feeds the calendar, the summary table and the day details page.
@@ -3837,6 +3901,28 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
   }
   function linesToParagraphLines(text){
     return (text || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => l.replace(/</g,'&lt;').replace(/>/g,'&gt;')).join('<br>');
+  }
+
+  function exportStudentPdf(filename, title, sections){
+    const Pdf = window.jspdf?.jsPDF;
+    if(!Pdf) return toast('The PDF library could not load. Please check your connection and try again.', 'warn');
+    const doc = new Pdf({unit:'pt', format:'a4'}), width = doc.internal.pageSize.getWidth(), height = doc.internal.pageSize.getHeight();
+    const margin = 48, lineWidth = width - margin * 2;
+    let y = 54;
+    const line = (value, size, bold, gap) => {
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(size);
+      String(value || '').split('\n').forEach(part => {
+        (doc.splitTextToSize(part || ' ', lineWidth) || [' ']).forEach(text => {
+          if(y > height - 54){ doc.addPage(); y = 54; }
+          doc.text(text, margin, y); y += size * 1.45;
+        });
+      });
+      y += gap;
+    };
+    line(title, 17, true, 12);
+    sections.forEach(([heading, value]) => { if(String(value || '').trim()){ line(heading.toUpperCase(), 9, true, 5); line(value, 11, false, 13); } });
+    doc.save(filename);
   }
 
   function renderResumePreview(){
@@ -3970,17 +4056,79 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     }
     const saved = getJSON('ic_resume', {})[key] || {};
     if(saved.savedAt) applyResume(saved);
-    else { if($r('ed-name') && me.name) $r('ed-name').value = me.name; if($r('ed-email') && me.email) $r('ed-email').value = me.email; }
+    else {
+      if($r('ed-name') && me.name) $r('ed-name').value = me.name;
+      if($r('ed-email') && me.email) $r('ed-email').value = me.email;
+      if(getJSON('ic_users', []).some(u => u.role === 'student' && u.email === me.email)){
+        ['ed-phone', 'ed-objective', 'ed-workexp', 'ed-volunteer', 'ed-awards'].forEach(id => { if($r(id)) $r(id).value = ''; });
+        if($r('ed-education')) $r('ed-education').value = [me.program, me.school].filter(Boolean).join(', ');
+        setChips('softTagBox', 'softTagInput', [], 'soft');
+        setChips('techTagBox', 'techTagInput', [], '');
+        [...document.querySelectorAll('#certRows input')].forEach(input => { input.value = ''; });
+      }
+    }
     const pdfInput = document.createElement('input'); pdfInput.type = 'file'; pdfInput.accept = 'application/pdf,.pdf'; pdfInput.hidden = true; pdfInput.id = 'resumePdfInput'; document.body.appendChild(pdfInput);
     const showPdf = name => { const row = $r('uploadedPdfRow'); if(!row) return; row.classList.toggle('hidden', !name); row.classList.toggle('flex', !!name); if(name) row.querySelector('span').textContent = name; };
     showPdf(saved.pdf || '');
+    const photoInput = document.createElement('input'); photoInput.type = 'file'; photoInput.accept = 'image/png,image/jpeg,image/webp'; photoInput.hidden = true; document.body.appendChild(photoInput);
+    const showPhoto = data => {
+      if(!data) return;
+      [document.querySelector('#resume-preview .w-16.h-16'), document.querySelector('#resume-edit .w-16.h-16')].forEach(box => {
+        if(!box) return;
+        box.innerHTML = '<img alt="Profile photo" class="w-full h-full object-cover rounded-full" src="' + data + '">';
+      });
+    };
+    showPhoto(me.avatar || '');
+    $r('uploadResumePhotoBtn')?.addEventListener('click', () => photoInput.click());
+    photoInput.addEventListener('change', () => {
+      const file = photoInput.files[0]; photoInput.value = '';
+      if(!file) return;
+      if(!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 1024 * 1024) return toast('Choose a PNG, JPG or WebP photo under 1 MB.', 'warn');
+      const reader = new FileReader();
+      reader.onload = () => {
+        const avatar = String(reader.result);
+        const users = getJSON('ic_users', []), index = users.findIndex(u => u.role === 'student' && u.email === me.email);
+        if(index >= 0){ users[index].avatar = avatar; setJSON('ic_users', users); }
+        setJSON('ic_session', Object.assign({}, session(), {avatar}));
+        document.querySelectorAll('[data-user="avatar"]').forEach(box => { box.innerHTML = '<img alt="" class="w-full h-full object-cover" src="' + avatar + '">'; });
+        showPhoto(avatar);
+        toast('Profile photo saved.', 'success');
+      };
+      reader.readAsDataURL(file);
+    });
     $r('uploadResumePdfBtn')?.addEventListener('click', () => pdfInput.click());
-    pdfInput.addEventListener('change', () => { const f = pdfInput.files[0]; pdfInput.value = ''; if(!f) return; if(!/\.pdf$/i.test(f.name)) return toast('Upload a PDF file.', 'warn'); savePart({pdf: f.name}); showPdf(f.name); toast('Resume PDF attached.', 'success'); });
-    $r('uploadedPdfRow')?.querySelector('button')?.addEventListener('click', () => { savePart({pdf: ''}); showPdf(''); toast('Resume PDF removed.', 'info'); });
+    pdfInput.addEventListener('change', () => {
+      const file = pdfInput.files[0]; pdfInput.value = '';
+      if(!file) return;
+      if(file.type !== 'application/pdf' || file.size > 1500000) return toast('Choose a PDF under 1.5 MB.', 'warn');
+      const reader = new FileReader();
+      reader.onload = () => { savePart({pdf:file.name, pdfData:String(reader.result)}); showPdf(file.name); toast('Resume PDF attached.', 'success'); };
+      reader.readAsDataURL(file);
+    });
+    $r('uploadedPdfRow')?.querySelector('span')?.addEventListener('click', () => {
+      const data = getJSON('ic_resume', {})[key]?.pdfData;
+      if(!data) return toast('This older attachment has no saved file. Upload it again to view it.', 'warn');
+      const a = document.createElement('a'); a.href = data; a.download = getJSON('ic_resume', {})[key].pdf; a.click();
+    });
+    $r('uploadedPdfRow')?.querySelector('button')?.addEventListener('click', () => { savePart({pdf: '', pdfData: ''}); showPdf(''); toast('Resume PDF removed.', 'info'); });
     $r('saveSkillsBtn')?.addEventListener('click', () => {
       const d = collect();
       if(!d.hard.length) return toast('Add at least 1 hard skill.', 'warn');
       savePart(d); renderResumePreview(); $r('saveSkillsMicrocopy')?.classList.remove('hidden'); toast('Saved. Your resume preview has been updated.', 'success');
+    });
+    $r('exportResumePdfBtn')?.addEventListener('click', () => {
+      const data = collect(), f = data.fields;
+      const verified = allTaskIds().flatMap(id => taskSubmissions(id).filter(s => s.name === me.name && s.status === 'Verified' && s.bullet).map(s => s.bullet));
+      exportStudentPdf('Resume_' + fileSlug(me.name || 'Student') + '.pdf', f['ed-name'] || me.name || 'Resume', [
+        ['Contact', [f['ed-phone'], f['ed-email']].filter(Boolean).join(' | ')],
+        ['Objective', f['ed-objective']], ['Work Experience', f['ed-workexp']], ['Education', f['ed-education']],
+        ['Soft Skills', data.soft.join(', ')], ['Hard Skills', data.hard.join(', ')],
+        ['Projects', data.thesisOn ? [f['ed-thesisTitle'], f['ed-thesisRole']].filter(Boolean).join(' - ') : ''],
+        ['Certifications', data.certsOn ? data.certs.map(c => c.filter(Boolean).join(' - ')).join('\n') : ''],
+        ['Volunteer Work', f['ed-volunteer']], ['Awards', f['ed-awards']],
+        ...data.custom.map(c => [c.title || 'Additional Section', c.text]),
+        ['Verified Internship Experience', verified.join('\n')]
+      ]);
     });
     renderResumePreview();
   }
@@ -4016,8 +4164,25 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     ta?.addEventListener('input',renderHighlight);
     ta?.addEventListener('keydown',function(e){ if(e.key==='Tab'){e.preventDefault(); const s=this.selectionStart,en=this.selectionEnd;this.value=this.value.substring(0,s)+'\t'+this.value.substring(en);this.selectionStart=this.selectionEnd=s+1;renderHighlight();}});
     document.getElementById('backToClassworkBtn')?.addEventListener('click',()=>go('classwork'));
-    document.getElementById('genPdfBtn')?.addEventListener('click',()=>toast('Generating PDF of your report...','info'));
-    document.getElementById('genWordBtn')?.addEventListener('click',()=>toast('Generating Word document of your report...','info'));
+    const report = () => {
+      const raw = ta?.value.trim() || '';
+      if(!raw){ toast('Write your report first.', 'warn'); return null; }
+      return {title: document.getElementById('taskDetailTitle').textContent, raw, name: (session() || {}).name || 'Student'};
+    };
+    document.getElementById('genPdfBtn')?.addEventListener('click',()=>{
+      const r = report(); if(!r) return;
+      exportStudentPdf('Accomplishment_Report_' + fileSlug(r.name) + '_' + fileSlug(r.title) + '.pdf', r.title, [['Student', r.name], ['Date', todayISO()], ['Report', r.raw]]);
+    });
+    document.getElementById('genWordBtn')?.addEventListener('click',()=>{
+      const r = report(); if(!r) return;
+      const html = '<html><head><meta charset="utf-8"></head><body style="font-family:Calibri,Arial,sans-serif">'
+        + '<h1>' + esc(r.title) + '</h1><p>' + esc(r.name) + ' · ' + todayISO() + '</p><h2>Accomplishment Report</h2><p>'
+        + esc(r.raw).replace(/\r?\n/g, '<br>') + '</p></body></html>';
+      const a = document.createElement('a');
+      a.href = 'data:application/msword;charset=utf-8,' + encodeURIComponent('\ufeff' + html);
+      a.download = 'Accomplishment_Report_' + fileSlug(r.name) + '_' + fileSlug(r.title) + '.doc';
+      a.click();
+    });
     renderHighlight();
   }
 
@@ -4109,8 +4274,10 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
   // ---------------- Common Page Init ----------------
   function initCommon(){
     if(document.body.dataset.role !== 'student' || !document.getElementById('sidebar')) return;   // student dashboard pages only
+    const me = session();
+    if(!me || me.role !== 'student'){ go('login'); return; }
     const user=refreshStatusFromUser();
-    if(!user && currentPage()!=='login') return;
+    if(!user){ go('login'); return; }
     if(user){
       // A student the coordinator has not approved yet cannot enter the portal
       if(user.status === 'pending'){
@@ -4147,7 +4314,7 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     document.getElementById('notifBtn')?.addEventListener('click',e=>{e.stopPropagation();document.getElementById('notifDropdown')?.classList.toggle('hidden');});
     document.addEventListener('click',e=>{const d=document.getElementById('notifDropdown');if(d && !d.contains(e.target) && e.target.id!=='notifBtn')d.classList.add('hidden');});
 
-    if(currentPage()==='attendance') initCalendar(); initAttendanceSummary(); initDayLog();
+    // Shared placement records below render attendance and day details for this student.
     if(currentPage()==='resume') initResume();
     if(currentPage()==='classwork') initClasswork();
     if(currentPage()==='taskdetail') initTaskDetail();
@@ -4184,7 +4351,7 @@ function allPostings(){
     Object.entries(getJSON(POSTINGS_KEY, {})).forEach(([id, p]) => { out[id] = Object.assign({}, out[id] || {}, p, {id}); });
     return out;
 }
-const jobDetails = Object.fromEntries(Object.entries(allPostings()).filter(([, j]) => j.status !== 'closed'));
+const jobDetails = Object.fromEntries(Object.entries(allPostings()).filter(([, j]) => j.status !== 'closed' && partnerCompanies().includes(j.company)));
 function jobCardHtml(id, j){
     const [kind, arrangement] = j.type.split(' · ');
     return '<div class="job-card bg-white rounded-xl border border-slate-200 shadow-sm p-4 hover:border-sky-300 transition cursor-pointer" data-arrangement="' + esc(arrangement || '') + '" data-course="' + esc(j.course) + '" data-job="' + esc(id) + '" data-type="' + esc(kind) + '">'
@@ -4205,7 +4372,11 @@ const JM_DEFAULT_SKILLS = ['Communication', 'Python', 'SQL', 'Canva'];
 const jmKey = (me) => ((me || {}).email || (me || {}).name || '').toLowerCase();
 const isInternshipJob = (job) => /^Internship/.test(job.type);
 const JOB_OPEN = ['Pending', 'Applied', 'Endorsed', 'Accepted'];
-function jmSkills(me){ const r = getJSON('ic_resume', {})[jmKey(me)]; return (r && r.savedAt ? (r.soft || []).concat(r.hard || []) : JM_DEFAULT_SKILLS).map(x => x.toLowerCase()); }
+function jmSkills(me){
+    const r = getJSON('ic_resume', {})[jmKey(me)];
+    const registered = getUsers().some(u => u.role === 'student' && u.email?.toLowerCase() === jmKey(me));
+    return (r?.savedAt ? (r.soft || []).concat(r.hard || []) : registered ? [] : JM_DEFAULT_SKILLS).map(x => x.toLowerCase());
+}
 // 40% course fit + 60% share of the job's skills found in the student's resume
 function jobMatch(job, me){
     const have = jmSkills(me), skills = job.skills.map(([n]) => [n, have.includes(n.toLowerCase())]);
@@ -4277,7 +4448,7 @@ if(document.body.dataset.role === 'student') document.addEventListener('DOMConte
         }
         const docs = internDocs(p.company, p.name);
         const files = !p.company ? '<p class="text-[12.5px] text-slate-400">Your folder is created once you apply to a partner company.</p>'
-            : docs.length ? '<div class="divide-y divide-slate-100">' + docs.map(f => '<div class="flex items-center justify-between gap-3 py-2"><div class="flex items-center gap-2.5"><i class="fa-solid fa-file-pdf text-red-400"></i><div><div class="text-[12.5px] text-slate-800">' + esc(f.name) + '</div><div class="text-[10.5px] text-slate-400">' + esc(f.type) + ' · ' + formatDate(f.uploadedAt) + (f.version > 1 ? ' · v' + f.version : '') + '</div></div></div><span class="text-[10.5px] text-slate-400">view only</span></div>').join('') + '</div>'
+            : docs.length ? '<div class="divide-y divide-slate-100">' + docs.map(f => '<div data-st-file="' + esc(f.id) + '" role="button" tabindex="0" class="flex items-center justify-between gap-3 py-2 cursor-pointer"><div class="flex items-center gap-2.5"><i class="fa-solid fa-file-pdf text-red-400"></i><div><div class="text-[12.5px] text-slate-800">' + esc(f.name) + '</div><div class="text-[10.5px] text-slate-400">' + esc(f.type) + ' · ' + formatDate(f.uploadedAt) + (f.version > 1 ? ' · v' + f.version : '') + '</div></div></div><span class="text-[10.5px] text-slate-400">view only</span></div>').join('') + '</div>'
             : '<p class="text-[12.5px] text-slate-400">No signed scans yet.</p>';
         let deletion = '';
         if(p.status === 'Completed'){
@@ -4300,6 +4471,8 @@ if(document.body.dataset.role === 'student') document.addEventListener('DOMConte
         renderStudentOverview();
         ov.addEventListener('click', async (e) => {
             const p = mine();
+            const documentRow = e.target.closest('[data-st-file]');
+            if(documentRow){ downloadPrototypeFile(internDocs(p.company, p.name).find(f => f.id === documentRow.dataset.stFile)); return; }
             if(e.target.closest('#stApplyBtn')){
                 const company = document.getElementById('stApplyCompany').value, position = document.getElementById('stApplyPosition').value.trim(), date = document.getElementById('stApplyDate').value || todayISO();
                 savePlacement(p.name, {status: 'Applied', company, position, source: 'student', email: me.email, history: (p.history || []).concat({status: 'Applied', date, note: company + (position ? ' · ' + position : '') + ' · by student'})});
@@ -4318,13 +4491,26 @@ if(document.body.dataset.role === 'student') document.addEventListener('DOMConte
             }
             if(e.target.closest('#stApplyBtn, #stCancelApply, #stDeleteReq')) renderStudentOverview();
         });
+        ov.addEventListener('keydown', e => { if(e.target.matches('[data-st-file]') && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); e.target.click(); } });
     }
 
     // ---- Classwork and task detail: tasks posted by the coordinator ----
     function myTasks(){ return getAllTasks().filter(t => t.classCode === (me.classCode || SEED_CODE) && t.status !== 'archived'); }
     const due = (t) => 'Due ' + formatDate(t.dueDate) + (t.dueTime ? ', ' + fmtClock(clockMins(t.dueTime)) : '');
-    const files = (t) => (t.template ? '<span class="inline-flex items-center gap-1 text-[11px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full"><i class="fa-solid fa-file-lines"></i>Template: ' + esc(t.template) + '</span>' : '')
-        + (t.attachments || []).map(a => '<span class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full"><i class="fa-solid fa-paperclip"></i>' + esc(a) + '</span>').join('');
+    const files = (t) => (t.template ? '<span role="button" tabindex="0" data-task-file="template" data-task-id="' + esc(t.id) + '" class="inline-flex items-center gap-1 text-[11px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full"><i class="fa-solid fa-file-lines"></i>Template: ' + esc(t.template) + '</span>' : '')
+        + (t.attachments || []).map((a, i) => '<span role="button" tabindex="0" data-task-file="' + i + '" data-task-id="' + esc(t.id) + '" class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full"><i class="fa-solid fa-paperclip"></i>' + esc(a) + '</span>').join('');
+    document.addEventListener('click', e => {
+        const item = e.target.closest('[data-task-file]'); if(!item) return;
+        e.preventDefault(); e.stopPropagation();
+        const task = getAllTasks().find(t => t.id === item.dataset.taskId);
+        const template = item.dataset.taskFile === 'template';
+        const index = Number(item.dataset.taskFile);
+        const data = template ? task?.templateData : task?.attachmentData?.[index];
+        const name = template ? task?.template : task?.attachments?.[index];
+        if(!data) return showToast('This older task only saved the file name. Ask your coordinator to upload it again.', 'warn');
+        const a = document.createElement('a'); a.href = data; a.download = name || 'Task file'; a.click();
+    });
+    document.addEventListener('keydown', e => { if(e.target.matches('[data-task-file]') && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); e.target.click(); } });
     function mySub(id){ return taskInfo(id).submissions.find(x => x.name === me.name) || {}; }
     const subBadge = (t) => {
         const st = mySub(t.id).status;
@@ -4350,7 +4536,7 @@ if(document.body.dataset.role === 'student') document.addEventListener('DOMConte
         const renderMySub = () => {
             document.getElementById('mySubStatus')?.remove();
             const sub = mySub(t.id), g = getGrades()[gradeKey(t.id, me.name)];
-            if(sub.raw && !ta.dataset.loaded){ ta.value = sub.raw; ta.dataset.loaded = '1'; ta.dispatchEvent(new Event('input')); }
+            if(!ta.dataset.loaded){ ta.value = sub.raw || ''; ta.dataset.loaded = '1'; ta.dispatchEvent(new Event('input')); }
             const locked = t.status === 'closed' || ['Pending Review', 'Verified', 'Rejected'].includes(sub.status);
             ta.readOnly = locked; btn.disabled = locked; btn.classList.toggle('opacity-50', locked); btn.classList.toggle('cursor-not-allowed', locked);
             if(!sub.status && t.status !== 'closed') return;
@@ -4541,10 +4727,12 @@ function saveLiveClock(name, kind, photo, coords){
     const all = getJSON(LIVE_KEY, {}), mine = all[name] || {}, rec = mine[date] || {};
     const rad = (x) => x * Math.PI / 180;
     const dist = coords ? Math.round(2 * 6371000 * Math.asin(Math.sqrt(Math.sin(rad(coords.latitude - site.lat) / 2) ** 2 + Math.cos(rad(site.lat)) * Math.cos(rad(coords.latitude)) * Math.sin(rad(coords.longitude - site.lng) / 2) ** 2))) : null;
-    if(kind === 'in') Object.assign(rec, {in: mins, photoIn: photo && photo.length < 250000 ? photo : '', lat: coords ? coords.latitude.toFixed(5) : '', lng: coords ? coords.longitude.toFixed(5) : '', dist});
+    if(kind === 'in') Object.assign(rec, {in: mins, photoIn: photo, lat: coords ? coords.latitude.toFixed(5) : '', lng: coords ? coords.longitude.toFixed(5) : '', dist});
     else {
+        if(rec.in == null || rec.out != null || !coords || !photo) return 0;
         const span = mins - rec.in;
-        Object.assign(rec, {out: mins, hours: Math.max(0, Math.round((span - (span > 300 ? 60 : 0)) / 6) / 10)});
+        Object.assign(rec, {out: mins, hours: Math.max(0, Math.round((span - (span > 300 ? 60 : 0)) / 6) / 10),
+            photoOut: photo, latOut: coords.latitude.toFixed(5), lngOut: coords.longitude.toFixed(5), distOut: dist});
     }
     mine[date] = rec; all[name] = mine;
     localStorage.setItem(LIVE_KEY, JSON.stringify(all));
@@ -4800,6 +4988,7 @@ function resumeHtml(key, name, withVerified){
       + sec('Thesis / project', r.thesisOn ? text([f['ed-thesisTitle'], f['ed-thesisRole']].filter(Boolean).join(' · ')) : '')
       + sec('Certifications', r.certsOn ? text((r.certs || []).map(c => c.filter(Boolean).join(' · ')).join('\n')) : '')
       + sec('Volunteer work', text(f['ed-volunteer'])) + sec('Awards', text(f['ed-awards']))
+      + (r.pdfData ? sec('Uploaded resume', '<button type="button" data-resume-download="' + esc(key) + '" class="text-[12.5px] font-medium text-sky-600 hover:underline">Download ' + esc(r.pdf) + '</button>') : '')
       + (r.custom || []).map(c => sec(esc(c.title || 'Other'), text(c.text))).join('') + '</div>';
     if(withVerified){
         const ver = allTaskIds().flatMap(id => taskSubmissions(id).filter(x => x.name === name && x.status === 'Verified' && x.bullet).map(x => [taskInfo(id).title, x.bullet]));
@@ -4827,6 +5016,12 @@ if(document.body.dataset.ppage) (function(){
     document.addEventListener('click', (e) => {
         const r = e.target.closest('[data-resume]'); if(!r) return;
         showModal('Resume · ' + r.dataset.name, resumeHtml(r.dataset.resume, r.dataset.name, r.dataset.verified === '1'));
+    });
+    document.addEventListener('click', (e) => {
+        const button = e.target.closest('[data-resume-download]'); if(!button) return;
+        const r = getJSON('ic_resume', {})[button.dataset.resumeDownload];
+        if(!r?.pdfData) return;
+        const a = document.createElement('a'); a.href = r.pdfData; a.download = r.pdf || 'Resume.pdf'; a.click();
     });
 
     function needsAction(){
