@@ -154,3 +154,17 @@ html[data-theme="rose"]{--navA:rgba(244,63,94,0.18);}
 .cal-day.present:hover,.cal-day.absent:hover{outline:2px solid var(--b600);}
 .cal-dot{width:4px;height:4px;border-radius:50%;background:currentColor;margin-top:3px;}
 .highlight-mark{background:#FEF3C7;border-radius:3px;padding:0 2px;}
+
+/* Registration password feedback */
+.password-strength{margin-top:8px;}
+.password-strength-track{height:5px;background:#E2E8F0;border-radius:999px;overflow:hidden;}
+.password-strength-fill{height:100%;width:0;border-radius:inherit;transition:width .2s,background-color .2s;}
+.password-strength-label{margin-top:5px;font-size:11.5px;font-weight:600;color:#64748B;}
+.password-strength-hint{margin-top:2px;font-size:11px;line-height:1.5;color:#64748B;}
+.password-strength[data-level="1"] .password-strength-fill{width:25%;background:#DC2626;}
+.password-strength[data-level="2"] .password-strength-fill{width:60%;background:#D97706;}
+.password-strength[data-level="3"] .password-strength-fill{width:100%;background:#059669;}
+.password-strength[data-level="1"] .password-strength-label{color:#DC2626;}
+.password-strength[data-level="2"] .password-strength-label{color:#B45309;}
+.password-strength[data-level="3"] .password-strength-label{color:#047857;}
+@media (prefers-reduced-motion:reduce){.password-strength-fill{transition:none;}}

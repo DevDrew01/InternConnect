@@ -451,6 +451,43 @@ on('sendResetLinkBtn', 'click', () => {
     }
 })();
 
+function passwordRequirements(password){
+    return [
+        [password.length >= 8, 'at least 8 characters'],
+        [/[A-Z]/.test(password), 'an uppercase letter'],
+        [/[a-z]/.test(password), 'a lowercase letter'],
+        [/[0-9]/.test(password), 'a number'],
+        [/[^A-Za-z0-9]/.test(password), 'a special character']
+    ];
+}
+
+// Shared live feedback for student, coordinator and partner registration.
+(function initPasswordStrength(){
+    const input = document.getElementById('regPassword');
+    if(!input) return;
+    const feedback = document.createElement('div');
+    feedback.className = 'password-strength';
+    feedback.innerHTML = '<div class="password-strength-track" role="meter" aria-label="Password strength" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0"><div class="password-strength-fill"></div></div><p id="passwordStrengthLabel" class="password-strength-label" aria-live="polite"></p><p id="passwordStrengthHint" class="password-strength-hint"></p>';
+    input.after(feedback);
+    input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), 'passwordStrengthLabel', 'passwordStrengthHint'].filter(Boolean).join(' '));
+    const meter = feedback.querySelector('[role="meter"]');
+    const update = () => {
+        const password = input.value;
+        const missing = passwordRequirements(password).filter(([met]) => !met).map(([, label]) => label);
+        const level = !password ? 0 : password.length < 8 || missing.length > 1 ? 1 : missing.length || password.length < 12 ? 2 : 3;
+        const label = ['Enter a password', 'Weak', 'Fair', 'Strong'][level];
+        feedback.dataset.level = level;
+        meter.setAttribute('aria-valuenow', String(level));
+        meter.setAttribute('aria-valuetext', label);
+        feedback.querySelector('.password-strength-label').textContent = password ? 'Password strength: ' + label : label;
+        feedback.querySelector('.password-strength-hint').textContent = missing.length ? 'Use ' + missing.join(', ') + '.' : password.length < 12 ? 'Requirements met. Use 12 or more characters for a stronger password.' : 'Requirements met. Use a unique password for this account.';
+    };
+    input.addEventListener('input', update);
+    input.addEventListener('change', update);
+    window.addEventListener('pageshow', update);
+    update();
+})();
+
 // Read every field of a step (ids that start with "reg"), also tells which ones are empty
 function collect(sectionId){
     const data = {}, empty = [];
@@ -520,12 +557,7 @@ on('regNext2', 'click', () => {
     const pw = document.getElementById('regPassword').value;
     const pwConfirm = document.getElementById('regPasswordConfirm').value;
     const code = document.getElementById('regCode').value.trim();
-   const passwordValid =
-    pw.length >= 8 &&
-    /[A-Z]/.test(pw) &&
-    /[a-z]/.test(pw) &&
-    /[0-9]/.test(pw) &&
-    /[^A-Za-z0-9]/.test(pw);
+   const passwordValid = passwordRequirements(pw).every(([met]) => met);
 
 const mismatch = !pw || pw !== pwConfirm;
 
