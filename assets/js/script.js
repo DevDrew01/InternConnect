@@ -284,7 +284,7 @@ function startSession(user, message){
         theme: user.theme, school: user.school || '', classCode: user.classCode || '',
         avatar: user.avatar || '', status: user.status || 'active', hours: Number(user.hours || user.ojtHours || 0),
         ojtHours: Number(user.ojtHours || user.hours || 0), completedAt: user.completedAt || '',
-        company: user.company || '', studentNumber: user.studentNumber || ''
+        company: user.company || '', category: user.category || '', studentNumber: user.studentNumber || ''
     }));
     applyTheme(user.theme);
     const dest = dashboards[user.role];
@@ -528,18 +528,105 @@ on('regNext1', 'click', () => {
     const {data, empty} = collect('tab-register1');
     document.getElementById('regStep1Error').classList.toggle('hidden', empty.length === 0);
     if(empty.length) return;
+    if(currentRole() === 'partnercompany'){
+        // Category labels map to program values for the existing class-code checks.
+        data.Category = document.getElementById('regProgram').selectedOptions[0].textContent;
+    }
     saveDraft(Object.assign(data, {role: currentRole()}));
     goTo('register2');
 });
 
+function registrationEmailError(email, role, usePersonalEmail){
+    if(!/^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email)) return 'Enter a valid email address, such as user@example.com.';
+    if(role !== 'partnercompany' && !usePersonalEmail && email.split('@')[1].toLowerCase() !== 'phinmaed.com'){
+        return 'Use your school email ending in @phinmaed.com, or select the personal email option.';
+    }
+    return '';
+}
+
+function registrationEmailData(){
+    const usePersonal = !!document.getElementById('regUsePersonalEmail')?.checked;
+    const schoolEmail = document.getElementById('regEmail').value.trim();
+    const personalEmail = document.getElementById('regPersonalEmail')?.value.trim() || '';
+    return {Email: usePersonal ? personalEmail : schoolEmail, SchoolEmail: currentRole() === 'partnercompany' ? '' : schoolEmail,
+        PersonalEmail: personalEmail, UsePersonalEmail: usePersonal};
+}
+
+(function initRegistrationEmail(){
+    const toggle = document.getElementById('regUsePersonalEmail');
+    if(!toggle) return;
+    const draft = getDraft();
+    toggle.checked = draft.UsePersonalEmail === true;
+    if(draft.SchoolEmail !== undefined) document.getElementById('regEmail').value = draft.SchoolEmail;
+    const update = () => {
+        const school = document.getElementById('regEmail');
+        const personal = document.getElementById('regPersonalEmail');
+        school.disabled = toggle.checked;
+        school.required = !toggle.checked;
+        personal.disabled = !toggle.checked;
+        personal.required = toggle.checked;
+        document.getElementById('personalEmailFields').classList.toggle('hidden', !toggle.checked);
+    };
+    toggle.addEventListener('change', update);
+    update();
+})();
+
+(function initRegistrationCodeVisibility(){
+    const code = document.getElementById('regCode');
+    if(!code) return;
+    const update = () => {
+        const data = registrationEmailData();
+        const email = data.Email.toLowerCase();
+        const valid = !registrationEmailError(data.Email, currentRole(), data.UsePersonalEmail);
+        const sent = valid && code.dataset.sentEmail === email;
+        document.getElementById('sendCodeBtn').textContent = sent ? 'Enter Code' : 'Send Code';
+        document.getElementById('regCodeFields').classList.toggle('hidden', !sent);
+        document.getElementById('resendCodeLink').classList.toggle('hidden', !sent);
+        code.disabled = !sent;
+        if(!sent){
+            delete code.dataset.sentEmail;
+            code.value = '';
+            document.getElementById('codeError').classList.add('hidden');
+        }
+    };
+    ['regEmail', 'regPersonalEmail', 'regUsePersonalEmail'].forEach(id => {
+        on(id, 'input', update);
+        on(id, 'change', update);
+    });
+    window.addEventListener('pageshow', update);
+    update();
+})();
+
 // Step 2: Back / Send Code / Resend / Next
-on('regBack2', 'click', () => goTo('register1'));
-on('sendCodeBtn', 'click', () => {
-    const email = document.getElementById('regEmail').value.trim();
-    if(!email) return showToast('Enter your email first.', 'warn');
-    showToast('Confirmation code sent to ' + email, 'info');
+on('regBack2', 'click', () => {
+    saveDraft(registrationEmailData());
+    goTo('register1');
 });
-on('resendCodeLink', 'click', () => showToast('A new code was sent to your email.', 'info'));
+// Temporary confirmation code for the local registration prototype.
+const REGISTRATION_TEST_CODE = '123456';
+function sendRegistrationCode(){
+    const data = registrationEmailData();
+    const error = registrationEmailError(data.Email, currentRole(), data.UsePersonalEmail);
+    showStep2Error(error);
+    if(error) return;
+    const code = document.getElementById('regCode');
+    code.dataset.sentEmail = data.Email.toLowerCase();
+    code.disabled = false;
+    document.getElementById('sendCodeBtn').textContent = 'Enter Code';
+    document.getElementById('regCodeFields').classList.remove('hidden');
+    document.getElementById('resendCodeLink').classList.remove('hidden');
+    showToast('Testing: use confirmation code ' + REGISTRATION_TEST_CODE + ' for ' + data.Email + '.', 'info');
+    code.focus();
+}
+on('sendCodeBtn', 'click', () => {
+    const email = registrationEmailData().Email.toLowerCase();
+    if(document.getElementById('regCode').dataset.sentEmail === email){
+        continueRegistrationStep2();
+    } else {
+        sendRegistrationCode();
+    }
+});
+on('resendCodeLink', 'click', sendRegistrationCode);
 // Show a red message right above the arrows (easier to notice than a toast)
 function showStep2Error(message){
     let box = document.getElementById('regStep2Error');
@@ -552,11 +639,18 @@ function showStep2Error(message){
     box.innerHTML = message ? '<i class="fa-solid fa-circle-exclamation mr-1"></i>' + message : '';
 }
 
-on('regNext2', 'click', () => {
-    const email = document.getElementById('regEmail').value.trim();
+function continueRegistrationStep2(){
+    const emailData = registrationEmailData();
+    const email = emailData.Email;
+    const emailError = registrationEmailError(email, currentRole(), emailData.UsePersonalEmail);
+    if(emailError) return showStep2Error(emailError);
+    if(document.getElementById('regCode').dataset.sentEmail !== email.toLowerCase()){
+        return showStep2Error('Click Send Code before entering your confirmation code.');
+    }
     const pw = document.getElementById('regPassword').value;
     const pwConfirm = document.getElementById('regPasswordConfirm').value;
     const code = document.getElementById('regCode').value.trim();
+    const codeValid = code === REGISTRATION_TEST_CODE;
    const passwordValid = passwordRequirements(pw).every(([met]) => met);
 
 const mismatch = !pw || pw !== pwConfirm;
@@ -568,8 +662,9 @@ document.getElementById('regPasswordMismatch').classList.toggle(
 
 document.getElementById('codeError').classList.toggle(
     'hidden',
-    code.length >= 6
+    codeValid
 );
+document.getElementById('codeError').textContent = 'Incorrect confirmation code. For testing, enter ' + REGISTRATION_TEST_CODE + '.';
 
 showStep2Error('');
 
@@ -583,10 +678,11 @@ if (!passwordValid) {
     if(getUsers().some(u => u.role === currentRole() && u.email.toLowerCase() === email.toLowerCase())){
         return showStep2Error('This email is already registered. Use a different email, or sign in instead.');
     }
-    if(!passwordValid || mismatch || code.length < 6) return;
-    saveDraft({Email: email, Password: pw});
+    if(!passwordValid || mismatch || !codeValid) return;
+    saveDraft({...emailData, Password: pw});
     goTo('register3');
-});
+}
+on('regNext2', 'click', continueRegistrationStep2);
 
 // Step 3 (Coordinator): Theme Picker — the whole screen changes color live
 document.querySelectorAll('.theme-dot').forEach(dot => {
@@ -626,6 +722,8 @@ on('enterDashboardBtn', 'click', () => {
     const draft = getDraft();
     const code = document.getElementById('regClassCode').value.trim();
     if(!draft.Email) { goTo('register1'); return; }   // skipped the earlier steps
+    const emailError = registrationEmailError(draft.Email, role, draft.UsePersonalEmail === true);
+    if(emailError) return goTo('register2', emailError, 'warn');
     if(!code) return showToast(role === 'coordinator' ? 'Generate or type a class code first.' : 'Enter your class code first.', 'warn');
 
     const all = getClasses();
@@ -641,16 +739,18 @@ on('enterDashboardBtn', 'click', () => {
     } else {
         const found = all[code];
         if(!found) return showToast('Invalid class code. Ask your coordinator for the correct one.', 'warn');
-        if(found.program !== draft.Program) return showToast('This class code is for ' + found.program + ', not your program.', 'warn');
+        if(found.program !== draft.Program) return showToast(role === 'partnercompany'
+            ? 'This class code is for ' + found.program + '. Choose a class code matching your industry category.'
+            : 'This class code is for ' + found.program + ', not your program.', 'warn');
         if((found.status || 'active') !== 'active') return showToast('This batch is ' + found.status + ' and no longer accepts new students. Ask your coordinator for a new class code.', 'warn');
         theme = found.theme;
         school = found.school || '';
     }
 
-    const user = {role, email: draft.Email, password: draft.Password, name: draft.FirstName + ' ' + draft.LastName,
+    const user = {role, email: draft.Email, schoolEmail: draft.SchoolEmail || '', personalEmail: draft.PersonalEmail || '', password: draft.Password, name: draft.FirstName + ' ' + draft.LastName,
                   program: draft.Program, theme, school, classCode: code, avatar: draft.avatar || '',
                   status: role === 'coordinator' ? 'active' : 'pending', requestedAt: todayISO(),   // students and partners wait for the coordinator
-                  company: draft.CompanyName || '', studentNumber: draft.StudentNumber || ''};
+                  company: draft.CompanyName || '', category: role === 'partnercompany' ? draft.Category || '' : '', studentNumber: draft.StudentNumber || ''};
     saveUsers(getUsers().concat(user));
     sessionStorage.removeItem('ic_reg');
     startSession(user, 'Account created. Welcome to InternConnect!');
