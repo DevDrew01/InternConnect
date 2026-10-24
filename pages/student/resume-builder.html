@@ -101,6 +101,21 @@
               </div>
               <button id="exportResumePdfBtn" class="text-[12.5px] font-semibold text-white bg-slate-900 hover:bg-slate-800 px-4 py-2.5 rounded-md transition"><i class="fa-solid fa-file-arrow-down mr-1.5"></i>Export PDF</button>
             </div>
+            <div class="grid gap-3 sm:grid-cols-2" aria-label="Resume creation options">
+              <div class="bg-white rounded-xl border border-slate-200 p-4">
+                <h2 class="text-[13px] font-semibold text-slate-900">Create Manually</h2>
+                <p class="text-[12px] text-slate-500 mt-1 mb-3">Write your own resume using your education, skills, and experience. You can edit it anytime.</p>
+                <button id="createResumeManuallyBtn" type="button" class="text-[12.5px] font-semibold text-white bg-slate-900 hover:bg-slate-800 px-4 py-2 rounded-md transition">Create or Edit Resume</button>
+              </div>
+              <div class="bg-white rounded-xl border border-slate-200 p-4">
+                <div class="flex items-center justify-between gap-2">
+                  <h2 class="text-[13px] font-semibold text-slate-900">Generate with AI</h2>
+                  <span class="text-[10.5px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">Coming soon</span>
+                </div>
+                <p id="resumeAiDescription" class="text-[12px] text-slate-500 mt-1 mb-3">AI generation will use your narrative reports to draft your resume. You will be able to review and edit the draft before saving it.</p>
+                <button type="button" disabled aria-describedby="resumeAiDescription" class="text-[12.5px] font-semibold text-slate-400 bg-slate-100 px-4 py-2 rounded-md cursor-not-allowed">Generate with AI</button>
+              </div>
+            </div>
             <div class="flex items-center gap-1.5 bg-white rounded-lg border border-slate-200 p-1 w-fit">
               <button class="resume-subtab-btn active text-[12.5px] font-semibold px-3.5 py-1.5 rounded-md transition" data-resumetab="resume-preview">Preview</button>
               <button class="resume-subtab-btn text-[12.5px] font-semibold px-3.5 py-1.5 rounded-md transition" data-resumetab="resume-edit">Edit Profile &amp; Skills</button>
@@ -109,13 +124,11 @@
             <div class="resume-subtab-panel" id="resume-preview">
               <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 w-full min-h-[calc(100vh-250px)]">
                 <div class="flex items-start gap-4 pb-4 border-b border-slate-100">
-                  <div class="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center text-slate-400 flex-shrink-0"><i class="fa-solid fa-user text-xl"></i></div>
                   <div class="flex-1">
                     <div class="flex items-center gap-2">
                       <h2 class="text-lg font-bold text-slate-900" id="pv-name">Alex V. Santos</h2>
                     </div>
                     <div class="text-[12px] text-slate-500 mt-0.5" id="pv-contact">0917 123 4567 · alex.santos@sjc.edu.ph</div>
-                    <div class="text-[11.5px] text-slate-400 mt-0.5">BS Computer Science · PHINMA St. Jude College</div>
                   </div>
                 </div>
                 <div class="py-3 border-b border-slate-100">
@@ -136,7 +149,7 @@
                   </div>
                   <p class="text-[13px] text-slate-600" id="pv-education">BS Computer Science, PHINMA St. Jude College — 2023–Present</p>
                 </div>
-                <div class="py-3 border-b border-slate-100 grid sm:grid-cols-2 gap-4">
+                <div class="py-3 border-b border-slate-100 grid gap-4">
                   <div>
                     <div class="flex items-center justify-between mb-1.5">
                       <h3 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Soft Skills</h3>
@@ -145,7 +158,7 @@
                   </div>
                   <div>
                     <div class="flex items-center justify-between mb-1.5">
-                      <h3 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Hard Skills</h3>
+                      <h3 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Technical Skills</h3>
                     </div>
                     <div class="flex flex-wrap gap-1.5" id="pv-hardskills"></div>
                   </div>
