@@ -31,6 +31,7 @@ body{font-family:'Inter',system-ui,sans-serif;}
 
 /* Sidebar Collapse */
 #sidebar{transition:width .2s ease, transform .2s ease;}
+@media (min-width:1024px){
 #sidebar.collapsed{width:76px;}
 #sidebar.collapsed .sidebar-text{display:none;}
 #sidebar.collapsed .nav-link{justify-content:center;padding-left:0;padding-right:0;}
@@ -39,6 +40,7 @@ body{font-family:'Inter',system-ui,sans-serif;}
 #sidebar.collapsed #collapseBtn{margin-left:0;}
 #sidebar.collapsed #collapseBtn i{transform:rotate(180deg);}
 #sidebar.collapsed .group-label{display:none;}
+}
 
 /* Footer */
 #mainFooter{transition:left .2s ease;}
@@ -155,6 +157,41 @@ html[data-theme="rose"]{--navA:rgba(244,63,94,0.18);}
 .cal-day.present:hover,.cal-day.absent:hover{outline:2px solid var(--b600);}
 .cal-dot{width:4px;height:4px;border-radius:50%;background:currentColor;margin-top:3px;}
 .highlight-mark{background:#FEF3C7;border-radius:3px;padding:0 2px;}
+
+/* Mobile navigation and resume content must fit the available viewport. */
+@media (max-width:1023px){
+  #sidebar{height:100dvh;max-width:calc(100vw - 48px);}
+  #sidebar > nav{min-height:0;overflow-y:auto;overscroll-behavior:contain;}
+  #sidebar > :first-child,#sidebar > :last-child{flex-shrink:0;}
+  #notifDropdown{position:fixed;top:auto;left:12px;right:12px;width:auto;max-height:65dvh;overflow-y:auto;}
+}
+@media (max-width:639px){
+  body[data-role="student"] header{display:grid;grid-template-columns:minmax(0,1fr) 36px 32px;gap:8px 10px;padding:12px;}
+  body[data-role="student"] header > :first-child{grid-column:1;grid-row:1;min-width:0;min-height:36px;padding-left:44px;gap:0;}
+  body[data-role="student"] header > :first-child > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  body[data-role="student"] header > :last-child{display:contents;}
+  body[data-role="student"] header > :last-child > :first-child{grid-column:1 / -1;grid-row:2;min-width:0;flex-wrap:wrap;}
+  body[data-role="student"] header > :last-child > :nth-child(2){grid-column:2;grid-row:1;}
+  body[data-role="student"] header > :last-child > :last-child{grid-column:3;grid-row:1;}
+  body[data-role="student"] header .toggle-wrap{min-height:36px;}
+  body[data-role="student"] header .toggle-opt{padding:7px 16px;}
+  #toastContainer{left:12px;right:12px;}
+  .toast{min-width:0;max-width:100%;overflow-wrap:anywhere;}
+  #tab-resume{min-width:0;}
+  #resume-preview > div,#resume-edit > div{padding:16px;}
+  #resume-preview{overflow-wrap:anywhere;}
+  #softTagInput,#techTagInput{min-width:0;width:100%;flex-basis:100%;}
+  #tab-resume .tag-chip{max-width:100%;white-space:normal;overflow-wrap:anywhere;}
+  #uploadedPdfRow{gap:12px;}
+  #uploadedPdfRow > div{min-width:0;flex-wrap:wrap;overflow-wrap:anywhere;}
+  #uploadedPdfRow > button{flex-shrink:0;min-width:36px;min-height:36px;}
+  #certRows > div{display:flex;flex-direction:column;align-items:stretch;}
+  #certRows input,#certRows select{min-width:0;width:100%;}
+  #pv-verified > div{flex-wrap:wrap;}
+  #tab-resume .resume-subtab-btn{white-space:normal;min-height:44px;}
+  #tab-resume input:not([type="checkbox"]):not([type="file"]),#tab-resume textarea,#tab-resume select{font-size:16px;}
+  #exportResumePdfBtn,#createResumeManuallyBtn,#saveSkillsBtn{width:100%;min-height:44px;}
+}
 
 /* Registration password feedback */
 .password-strength{margin-top:8px;}

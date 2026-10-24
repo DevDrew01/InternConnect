@@ -4079,7 +4079,13 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
       y += gap;
     };
     line(title, 17, true, 12);
-    sections.forEach(([heading, value]) => { if(String(value || '').trim()){ line(heading.toUpperCase(), 9, true, 5); line(value, 11, false, 13); } });
+    sections.forEach(([heading, value]) => {
+      if(!String(value || '').trim()) return;
+      // Keep the section heading with at least the first two lines of content.
+      if(y + 65 > height - 54){ doc.addPage(); y = 54; }
+      line(heading.toUpperCase(), 11, true, 5);
+      line(value, 11, false, 13);
+    });
     doc.save(filename);
   }
 
@@ -4097,8 +4103,8 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
 
     const soft = [...document.querySelectorAll('#softTagBox .tag-chip')].map(c => c.childNodes[0]?.textContent?.trim() || '').filter(Boolean);
     const hard = [...document.querySelectorAll('#techTagBox .tag-chip')].map(c => c.childNodes[0]?.textContent?.trim() || '').filter(Boolean);
-    get('pv-softskills').innerHTML = soft.map(x => '<span class="tag-chip soft">' + x + '</span>').join('');
-    get('pv-hardskills').innerHTML = hard.map(x => '<span class="tag-chip">' + x + '</span>').join('');
+    get('pv-softskills').textContent = soft.join(', ');
+    get('pv-hardskills').textContent = hard.join(', ');
 
     const includeThesis = get('includeThesisToggle')?.checked;
     const thesisTitle = get('ed-thesisTitle')?.value.trim() || '';
@@ -4151,6 +4157,10 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
   }
 
   function initResume(){
+    document.getElementById('createResumeManuallyBtn')?.addEventListener('click', () => {
+      document.querySelector('.resume-subtab-btn[data-resumetab="resume-edit"]')?.click();
+      document.getElementById('ed-name')?.focus();
+    });
     document.querySelectorAll('.resume-subtab-btn').forEach(btn=>btn.addEventListener('click',()=>{
       document.querySelectorAll('.resume-subtab-btn').forEach(b=>b.classList.remove('active'));
       document.querySelectorAll('.resume-subtab-panel').forEach(p=>p.classList.add('hidden'));
@@ -4280,7 +4290,7 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
       exportStudentPdf('Resume_' + fileSlug(me.name || 'Student') + '.pdf', f['ed-name'] || me.name || 'Resume', [
         ['Contact', [f['ed-phone'], f['ed-email']].filter(Boolean).join(' | ')],
         ['Objective', f['ed-objective']], ['Work Experience', f['ed-workexp']], ['Education', f['ed-education']],
-        ['Soft Skills', data.soft.join(', ')], ['Hard Skills', data.hard.join(', ')],
+        ['Soft Skills', data.soft.join(', ')], ['Technical Skills', data.hard.join(', ')],
         ['Projects', data.thesisOn ? [f['ed-thesisTitle'], f['ed-thesisRole']].filter(Boolean).join(' - ') : ''],
         ['Certifications', data.certsOn ? data.certs.map(c => c.filter(Boolean).join(' - ')).join('\n') : ''],
         ['Volunteer Work', f['ed-volunteer']], ['Awards', f['ed-awards']],
