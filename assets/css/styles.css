@@ -113,7 +113,8 @@ html[data-theme] .focus\:ring-sky-400:focus{--tw-ring-color:var(--b400)}
 html[data-theme] .focus\:border-sky-400:focus{border-color:var(--b400)}
 
 /* Branding panel on Login / Register screens */
-.brand-panel{background:linear-gradient(165deg,var(--bd),var(--bdd));}
+.brand-panel{background:linear-gradient(135deg,var(--bd) 0%,var(--bdd) 50%,var(--bd) 100%);background-size:250% 250%;animation:brandGradientDrift 18s ease-in-out infinite;}
+@keyframes brandGradientDrift{0%,100%{background-position:0% 25%;}50%{background-position:100% 75%;}}
 .brand-panel .glow-a{background:var(--glowA);}
 .brand-panel .glow-b{background:var(--glowB);}
 /* Animated glow (Login / Register) */
@@ -128,7 +129,7 @@ html[data-theme="rose"]{--navA:rgba(244,63,94,0.18);}
 #sidebar{background-image:linear-gradient(180deg,var(--bd),var(--bdd));overflow:hidden;}
 #sidebar::before{content:"";position:absolute;top:-80px;right:-90px;width:220px;height:220px;border-radius:50%;background:var(--glowA);filter:blur(60px);pointer-events:none;animation:glowDriftA 14s ease-in-out infinite;}
 #sidebar > *{position:relative;}
-@media (prefers-reduced-motion:reduce){.glow-a,.glow-b,#sidebar::before{animation:none;}}
+@media (prefers-reduced-motion:reduce){.brand-panel,.brand-panel .glow-a,.brand-panel .glow-b,[class*="theme-panel-"] .glow-a,[class*="theme-panel-"] .glow-b,.glow-a,.glow-b,#sidebar::before{animation:none;}}
 /* ============ Student portal helpers ============ */
 .toggle-wrap{display:inline-flex;align-items:center;background:#E2E8F0;border-radius:100px;padding:3px;gap:2px;}
 .toggle-opt{font-size:11.5px;font-weight:600;line-height:1.2;white-space:nowrap;padding:5px 12px;border-radius:100px;color:#64748B;cursor:pointer;transition:.15s;user-select:none;}
@@ -160,7 +161,14 @@ html[data-theme="rose"]{--navA:rgba(244,63,94,0.18);}
 .password-strength-track{height:5px;background:#E2E8F0;border-radius:999px;overflow:hidden;}
 .password-strength-fill{height:100%;width:0;border-radius:inherit;transition:width .2s,background-color .2s;}
 .password-strength-label{margin-top:5px;font-size:11.5px;font-weight:600;color:#64748B;}
-.password-strength-hint{margin-top:2px;font-size:11px;line-height:1.5;color:#64748B;}
+.password-strength-hint{margin-top:2px;font-size:10.5px;line-height:1.5;color:#94A3B8;}
+.password-strength-hint:empty{display:none;}
+.password-requirements{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:3px;font-size:11px;line-height:1.5;color:#94A3B8;}
+.password-requirements li{display:flex;align-items:center;gap:6px;}
+.password-requirements[hidden],.password-requirements li[hidden]{display:none;}
+.password-requirement-icon{display:none;width:14px;flex-shrink:0;text-align:center;font-weight:700;}
+.password-requirements .is-met .password-requirement-icon{display:inline-block;}
+.password-requirements .is-met{color:#047857;}
 .password-strength[data-level="1"] .password-strength-fill{width:25%;background:#DC2626;}
 .password-strength[data-level="2"] .password-strength-fill{width:60%;background:#D97706;}
 .password-strength[data-level="3"] .password-strength-fill{width:100%;background:#059669;}

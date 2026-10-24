@@ -471,16 +471,42 @@ function passwordRequirements(password){
     input.after(feedback);
     input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), 'passwordStrengthLabel', 'passwordStrengthHint'].filter(Boolean).join(' '));
     const meter = feedback.querySelector('[role="meter"]');
+    const checklist = document.createElement('ul');
+    checklist.id = 'passwordRequirements';
+    checklist.className = 'password-requirements';
+    checklist.setAttribute('aria-label', 'Password requirements');
+    const requirementItems = passwordRequirements('').map(([, label]) => {
+        const item = document.createElement('li');
+        const icon = document.createElement('span');
+        icon.className = 'password-requirement-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        const text = document.createElement('span');
+        text.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+        item.append(icon, text);
+        checklist.appendChild(item);
+        return {item, icon, label};
+    });
+    feedback.appendChild(checklist);
+    input.setAttribute('aria-describedby', input.getAttribute('aria-describedby') + ' passwordRequirements');
     const update = () => {
         const password = input.value;
-        const missing = passwordRequirements(password).filter(([met]) => !met).map(([, label]) => label);
+        const requirements = passwordRequirements(password);
+        const missing = requirements.filter(([met]) => !met).map(([, label]) => label);
+        checklist.hidden = missing.length === requirements.length;
+        requirements.forEach(([met], index) => {
+            const {item, icon, label} = requirementItems[index];
+            item.hidden = !met;
+            item.classList.toggle('is-met', met);
+            item.setAttribute('aria-label', (met ? 'Met: ' : 'Not met: ') + label);
+            icon.textContent = met ? '\u2713' : '';
+        });
         const level = !password ? 0 : password.length < 8 || missing.length > 1 ? 1 : missing.length || password.length < 12 ? 2 : 3;
         const label = ['Enter a password', 'Weak', 'Fair', 'Strong'][level];
         feedback.dataset.level = level;
         meter.setAttribute('aria-valuenow', String(level));
         meter.setAttribute('aria-valuetext', label);
         feedback.querySelector('.password-strength-label').textContent = password ? 'Password strength: ' + label : label;
-        feedback.querySelector('.password-strength-hint').textContent = missing.length ? 'Use ' + missing.join(', ') + '.' : password.length < 12 ? 'Requirements met. Use 12 or more characters for a stronger password.' : 'Requirements met. Use a unique password for this account.';
+        feedback.querySelector('.password-strength-hint').textContent = missing.length ? 'Use ' + missing.join(', ') + '.' : '';
     };
     input.addEventListener('input', update);
     input.addEventListener('change', update);
