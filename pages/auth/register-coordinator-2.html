@@ -45,8 +45,17 @@
                 <p class="text-[12.5px] text-slate-500 mt-1 mb-5">Sign up as an <span class="font-semibold text-slate-700">OJT Coordinator.</span></p>
                 <div class="space-y-3.5">
                     <div>
-                        <label class="text-[12px] font-medium text-slate-600 block mb-1">Email <span class="text-red-500">*</span></label>
-                        <input id="regEmail" type="text" placeholder="juandelacruz@sjxc.edu.ph" class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400">
+                        <label for="regEmail" class="text-[12px] font-medium text-slate-600 block mb-1">School Email <span class="text-red-500">*</span></label>
+                        <input id="regEmail" type="email" autocomplete="email" required placeholder="user@phinmaed.com" class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400">
+                        <p class="text-[11.5px] text-slate-500 mt-1">Use your PHINMA SJCDC email ending in @phinmaed.com.</p>
+                    </div>
+                    <div>
+                        <label class="flex items-center gap-2 text-[12px] text-slate-600"><input id="regUsePersonalEmail" type="checkbox" aria-controls="personalEmailFields">My school email isn't working</label>
+                        <div id="personalEmailFields" class="hidden mt-3">
+                            <label for="regPersonalEmail" class="text-[12px] font-medium text-slate-600 block mb-1">Personal Email <span class="text-red-500">*</span></label>
+                            <input id="regPersonalEmail" type="email" autocomplete="email" disabled placeholder="you@example.com" class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400">
+                            <p class="text-[11.5px] text-slate-500 mt-1">Use this personal email to sign in and receive your confirmation code.</p>
+                        </div>
                     </div>
                     <div>
                         <label class="text-[12px] font-medium text-slate-600 block mb-1">Password <span class="text-red-500">*</span></label>
@@ -57,12 +66,12 @@
                         <input id="regPasswordConfirm" type="password" placeholder="••••••••" class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400">
                     </div>
                     <p id="regPasswordMismatch" class="hidden text-[11.5px] text-red-600"><i class="fa-solid fa-circle-exclamation mr-1"></i>Passwords do not match.</p>
-                    <div>
+                    <div id="regCodeFields" class="hidden">
                         <label class="text-[12px] font-medium text-slate-600 block mb-1">Email Confirmation <span class="text-red-500">*</span></label>
-                        <input id="regCode" type="text" placeholder="Enter the 6-digit code" class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400">
+                        <input id="regCode" type="text" disabled placeholder="Enter the 6-digit code" class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400">
                     </div>
                     <p id="codeError" class="hidden text-[11.5px] text-red-600"><i class="fa-solid fa-circle-exclamation mr-1"></i>Enter the 6-digit code sent to your email.</p>
-                    <span id="resendCodeLink" class="inline-block text-[10.5px] font-semibold uppercase text-sky-600 cursor-pointer hover:underline">Resend code</span>
+                    <span id="resendCodeLink" class="hidden inline-block text-[10.5px] font-semibold uppercase text-sky-600 cursor-pointer hover:underline">Resend code</span>
                     <button id="sendCodeBtn" type="button" class="w-full bg-slate-900 hover:bg-slate-800 text-white text-[13.5px] font-semibold py-2.5 rounded-md transition">Send Code</button>
                     <div class="flex items-center justify-center gap-4 pt-2">
                         <button id="regBack2" type="button" aria-label="Back" class="w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center transition"><i class="fa-solid fa-arrow-left text-xs"></i></button>

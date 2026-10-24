@@ -61,8 +61,11 @@
                         <input id="regLastName" type="text" placeholder="ex. Dela Cruz" class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400">
                     </div>
                     <div>
-                        <label class="text-[12px] font-medium text-slate-600 block mb-1">School Name <span class="text-red-500">*</span></label>
-                        <input id="regSchoolName" type="text" placeholder="ex. PHINMA St. Jude College" class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400">
+                        <label for="regSchoolName" class="text-[12px] font-medium text-slate-600 block mb-1">School Name <span class="text-red-500">*</span></label>
+                        <select id="regSchoolName" required class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400">
+                            <option value="" disabled selected>Select your school</option>
+                            <option value="PHINMA SJCDC">PHINMA - St. Jude College Dasmariñas Cavite</option>
+                        </select>
                     </div>
                     <div>
                         <label class="text-[12px] font-medium text-slate-600 block mb-1">School Program <span class="text-red-500">*</span></label>

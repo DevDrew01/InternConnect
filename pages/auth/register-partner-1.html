@@ -65,12 +65,12 @@
                         <input id="regCompanyName" type="text" placeholder="ex. Tech Solutions Inc." class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400">
                     </div>
                     <div>
-                        <label class="text-[12px] font-medium text-slate-600 block mb-1">School Program <span class="text-red-500">*</span></label>
-                        <select id="regProgram" class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white text-slate-500">
-                            <option value="">Select</option>
-                            <option>BS Business Administration</option>
-                            <option>BS Computer Science</option>
-                            <option>BS Hospitality Management</option>
+                        <label for="regProgram" class="text-[12px] font-medium text-slate-600 block mb-1">Industry Category <span class="text-red-500">*</span></label>
+                        <select id="regProgram" required class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white text-slate-500">
+                            <option value="">Select a category</option>
+                            <option value="BS Business Administration">Business</option>
+                            <option value="BS Computer Science">Technology</option>
+                            <option value="BS Hospitality Management">Hospitality</option>
                         </select>
                     </div>
                     <p id="regStep1Error" class="hidden text-[11.5px] text-red-600"><i class="fa-solid fa-circle-exclamation mr-1"></i>Please fill in all required fields.</p>
