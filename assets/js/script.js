@@ -1772,14 +1772,18 @@ function seededRandom(text){
 }
 const isoDate = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 const AUDIT_KEY = 'ic_audit';
+function auditStorageKey(session){
+    const identity = String((session || {}).email || (session || {}).name || 'guest').trim().toLowerCase();
+    return AUDIT_KEY + ':' + (identity.replace(/[^a-z0-9._-]+/g, '_') || 'guest');
+}
 function logAudit(action, status, system){
     const sess = getJSON('ic_session', {});
     const d = new Date();
-    const all = getJSON(AUDIT_KEY, []);
+    const key = auditStorageKey(sess), all = getJSON(key, []);
     all.push({at: isoDate(d) + ' ' + d.toTimeString().slice(0, 8), action, status: status || 'Success',
         user: system ? 'system-auto' : (sess.role === 'partnercompany' ? 'partner-' : 'coord-') + (sess.name || 'coordinator').split(/\s+/).map(w => w[0]).join('').toLowerCase() + '-001',
         ip: system ? 'internal' : '203.177.**.**'});
-    localStorage.setItem(AUDIT_KEY, JSON.stringify(all.slice(-500)));
+    localStorage.setItem(key, JSON.stringify(all.slice(-500)));
 }
 
 // Work schedule of a deployed intern, set by the coordinator at deployment (partners may update it if they use the portal)
@@ -3242,14 +3246,8 @@ if(document.getElementById('wr-deletions')){
 /* ============ Audit Trail ============ */
 
 const AUDIT_BADGE = {Success: 'text-emerald-700 bg-emerald-50', Verified: 'text-emerald-700 bg-emerald-50', Flagged: 'text-amber-600 bg-amber-50', Hold: 'text-amber-600 bg-amber-50', Deleted: 'text-slate-600 bg-slate-100', Anonymized: 'text-slate-600 bg-slate-100'};
-// Sample entries (demo batch only; real activity is written by logAudit)
-const AUDIT_SAMPLES = [
-    {at: '2026-09-15 17:42:03', user: 'coord-jdc-001', action: 'Approved Resume Bullet for Student #2023-0012', ip: '203.177.**.**', status: 'Success'},
-    {at: '2026-09-15 17:20:51', user: 'coord-jdc-001', action: 'Verified Daily Log Sign-off for Student #2023-0141', ip: '203.177.**.**', status: 'Verified'},
-    {at: '2026-09-15 09:03:14', user: 'system-auto', action: 'Flagged Student #2023-0172 \u2014 3 consecutive missed logs', ip: 'internal', status: 'Flagged'},
-    {at: '2026-09-14 14:55:37', user: 'coord-jdc-001', action: 'Exported BSCS Summary Report (PDF)', ip: '203.177.**.**', status: 'Success'}
-];
-const auditRows = () => getJSON(AUDIT_KEY, []).slice().reverse().concat(currentBatchCode() === SEED_CODE ? AUDIT_SAMPLES : []);
+// Audit rows come only from actions recorded by logAudit. There are no demo rows.
+const auditRows = () => getJSON(auditStorageKey(getJSON('ic_session', {})), []).slice().reverse();
 function renderAudit(){
     const rows = auditRows();
     document.getElementById('auditTbody').innerHTML = rows.length ? rows.map(a => '<tr>'
@@ -4191,7 +4189,7 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     input.addEventListener('keydown',e=>{
       if(e.key==='Enter' && input.value.trim()){
         e.preventDefault();
-        const max = inputId === 'softTagInput' ? 4 : 15;
+        const max = inputId === 'softTagInput' ? Infinity : 15;
         const existing = [...input.parentElement.querySelectorAll('.tag-chip')].map(c => (c.childNodes[0]?.textContent || '').trim().toLowerCase());
         if(existing.length >= max){ input.value=''; return toast('Maximum of ' + max + ' tags reached.','warn'); }
         if(existing.includes(input.value.trim().toLowerCase())){ input.value=''; return toast('That skill is already added.','info'); }
@@ -4953,8 +4951,45 @@ function saveLiveClock(name, kind, photo, coords){
     return rec.hours || 0;
 }
 
-// Coordinator Classwork: reports still waiting for review
-if(document.getElementById('pendingLogsCount')) document.getElementById('pendingLogsCount').textContent = allTaskIds().reduce((n, id) => n + taskInfo(id).submissions.filter(x => x.status === 'Pending Review').length, 0);
+// Coordinator Classwork: only real submissions should create a pending-review banner.
+// The built-in task examples are presentation data and must not look like live logs.
+function renderPendingLogsBanner(){
+    const countEl = document.getElementById('pendingLogsCount'), banner = document.getElementById('pendingLogsBanner');
+    if(!countEl || !banner) return;
+    const saved = getJSON(SUB_KEY, {}), statuses = getJSON(SUB_STATUS_KEY, {});
+    const count = Object.entries(saved).reduce((total, [taskId, submissions]) => total + (Array.isArray(submissions) ? submissions.filter(sub => {
+        const status = statuses[taskId + '|' + sub.name]?.status || sub.status;
+        return status === 'Pending Review';
+    }).length : 0), 0);
+    countEl.textContent = count;
+    banner.classList.toggle('hidden', count === 0);
+}
+renderPendingLogsBanner();
+
+// Coordinator notifications: show real student task submissions, not deadline or sample-log reminders.
+function renderCoordinatorSubmissionNotifications(){
+    if(isStudentPortal) return;
+    const drop = document.querySelector('#notifDropdown .divide-y'), button = document.getElementById('notifBtn');
+    if(!drop || !button) return;
+    const saved = getJSON(SUB_KEY, {}), items = Object.entries(saved).flatMap(([taskId, submissions]) =>
+        (Array.isArray(submissions) ? submissions : []).map(sub => ({taskId, sub}))
+    ).sort((a, b) => String(b.sub.date || '').localeCompare(String(a.sub.date || ''))).slice(0, 8);
+    if(!items.length){
+        drop.innerHTML = '<div class="px-4 py-5 text-center text-[12px] text-slate-400">No student task submissions yet.</div>';
+        button.querySelector('.notification-dot')?.classList.add('hidden');
+        return;
+    }
+    drop.innerHTML = items.map(({taskId, sub}) => {
+        const title = (findTask(taskId) || taskData[taskId] || {}).title || 'Task submission';
+        const status = sub.status || 'Pending Review';
+        return '<div class="px-4 py-3 flex gap-3 hover:bg-slate-50">'
+            + '<div class="w-8 h-8 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-file-arrow-up text-[11px]"></i></div>'
+            + '<div class="min-w-0"><div class="text-[12.5px] text-slate-700"><strong>' + esc(sub.name || 'A student') + '</strong> submitted <strong>' + esc(title) + '</strong>.</div>'
+            + '<div class="text-[10.5px] text-slate-400 mt-0.5">' + esc(status) + (sub.date ? ' · ' + esc(formatDate(sub.date)) : '') + '</div></div></div>';
+    }).join('');
+    button.querySelector('.notification-dot')?.classList.remove('hidden');
+}
+renderCoordinatorSubmissionNotifications();
 
 /* ============ Partner directory: office location and geofence ============ */
 function renderSiteLines(){
