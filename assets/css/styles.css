@@ -1,10 +1,28 @@
 /* Font */
 body{font-family:'Inter',system-ui,sans-serif;}
+body:has(#sidebar) > div{visibility:hidden;}
+html.app-ready body:has(#sidebar) > div{visibility:visible;}
+body:has(#sidebar) main{visibility:hidden;}
+html.app-ready body:has(#sidebar) main{visibility:visible;}
 
 /* Nav Links */
 .nav-link.active{background:linear-gradient(90deg,var(--navA),rgba(255,255,255,0.02));border-left:3px solid var(--b500);color:#fff;}
 .nav-link.active i{color:var(--b400);}
 .nav-link{border-left:3px solid transparent;}
+/* Student pages declare their current page on <body>; use it before JavaScript initializes. */
+body[data-page]:not([data-page="overview"]) #sidebar .nav-link[data-tab="overview"]{background:transparent;border-left-color:transparent;color:#cbd5e1;}
+body[data-page="attendance"] #sidebar .nav-link[data-tab="attendance"],
+body[data-page="daylog"] #sidebar .nav-link[data-tab="attendance"],
+body[data-page="classwork"] #sidebar .nav-link[data-tab="classwork"],
+body[data-page="taskdetail"] #sidebar .nav-link[data-tab="classwork"],
+body[data-page="resume"] #sidebar .nav-link[data-tab="resume"],
+body[data-page="jobs"] #sidebar .nav-link[data-tab="jobs"]{background:linear-gradient(90deg,var(--navA),rgba(255,255,255,0.02));border-left-color:var(--b500);color:#fff;}
+body[data-page="attendance"] #sidebar .nav-link[data-tab="attendance"] i,
+body[data-page="daylog"] #sidebar .nav-link[data-tab="attendance"] i,
+body[data-page="classwork"] #sidebar .nav-link[data-tab="classwork"] i,
+body[data-page="taskdetail"] #sidebar .nav-link[data-tab="classwork"] i,
+body[data-page="resume"] #sidebar .nav-link[data-tab="resume"] i,
+body[data-page="jobs"] #sidebar .nav-link[data-tab="jobs"] i{color:var(--b400);}
 
 /* Scrollbar */
 ::-webkit-scrollbar{width:8px;height:8px;}
