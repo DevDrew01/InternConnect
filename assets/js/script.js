@@ -1783,7 +1783,8 @@ function logAudit(action, status, system){
     all.push({at: isoDate(d) + ' ' + d.toTimeString().slice(0, 8), action, status: status || 'Success',
         user: system ? 'system-auto' : (sess.role === 'partnercompany' ? 'partner-' : 'coord-') + (sess.name || 'coordinator').split(/\s+/).map(w => w[0]).join('').toLowerCase() + '-001',
         ip: system ? 'internal' : '203.177.**.**'});
-    localStorage.setItem(key, JSON.stringify(all.slice(-500)));
+    if(window.ICCore?.storage) window.ICCore.storage.setJSON(key, all.slice(-500));
+    else localStorage.setItem(key, JSON.stringify(all.slice(-500)));
 }
 
 // Work schedule of a deployed intern, set by the coordinator at deployment (partners may update it if they use the portal)
@@ -3265,6 +3266,12 @@ function auditExportData(){
         .concat(statuses.map(s => ['Status: ' + s, list.filter(a => a.status === s).length]));
     return {head, rows, details};
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.audit = window.ICCore.audit || {};
+window.ICCore.audit.render = renderAudit;
+window.ICCore.audit.rows = auditRows;
+window.ICCore.audit.exportData = auditExportData;
+window.ICCore.audit.log = logAudit;
 const auditFile = (ext) => 'Audit_Log_' + fileSlug(activeClassCode() || 'batch') + '_' + todayISO() + '.' + ext;
 function exportAuditXlsx(){
     if(typeof XLSX === 'undefined'){ showToast('The Excel library could not load (are you offline?). Use the PDF option instead.', 'warn'); return false; }
@@ -3304,26 +3311,8 @@ function exportAuditPdf(){
     doc.save(auditFile('pdf'));
     return true;
 }
-if(document.getElementById('auditTbody')){
-    getDeletionRequests();
-    renderAudit();
-    const btn = document.getElementById('exportAuditBtn'), menu = document.getElementById('exportAuditMenu');
-    const setMenu = (open) => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
-    btn.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.classList.contains('hidden')); });
-    document.addEventListener('click', (e) => { if(!menu.contains(e.target)) setMenu(false); });
-    document.addEventListener('keydown', (e) => { if(e.key === 'Escape') setMenu(false); });
-    menu.addEventListener('click', (e) => {
-        const item = e.target.closest('[data-export]');
-        if(!item) return;
-        setMenu(false);
-        const label = item.dataset.export === 'xlsx' ? 'Excel' : 'PDF';
-        try { if(!(item.dataset.export === 'xlsx' ? exportAuditXlsx() : exportAuditPdf())) return; }
-        catch(err){ console.error(err); showToast('Could not create the file. Please try again.', 'warn'); return; }
-        logAudit('Exported the audit trail log (' + label + ')');
-        renderAudit();
-        showToast('Audit log downloaded as ' + label + '.', 'success');
-    });
-}
+window.ICCore.audit.exportXlsx = exportAuditXlsx;
+window.ICCore.audit.exportPdf = exportAuditPdf;
 
 
 /* ============ Overview: pipeline, needs attention, task tracker ============ */
@@ -4211,11 +4200,12 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     }));
     wireTagInput('techTagInput','');
     wireTagInput('softTagInput','soft');
-    document.querySelectorAll('.example-chip').forEach(btn => btn.addEventListener('click', () => {
-      const input = document.getElementById(btn.dataset.exampleFor);
-      if(!input) return;
-      input.value = btn.textContent.trim();
+    document.querySelectorAll('select.example-chip, select[data-example-for]').forEach(select => select.addEventListener('change', () => {
+      const input = document.getElementById(select.dataset.exampleFor), value = select.value;
+      if(!input || !value) return;
+      input.value = value;
       input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
+      select.value = '';
     }));
     document.getElementById('addCertBtn')?.addEventListener('click',()=>{
       const rows=document.getElementById('certRows'); if(!rows) return;
@@ -4480,56 +4470,7 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     filterJobs();
   }
 
-  // ---------------- Common Page Init ----------------
-  function initCommon(){
-    if(document.body.dataset.role !== 'student' || !document.getElementById('sidebar')) return;   // student dashboard pages only
-    const me = session();
-    if(!me || me.role !== 'student'){ go('login'); return; }
-    const user=refreshStatusFromUser();
-    if(!user){ go('login'); return; }
-    if(user){
-      // A student the coordinator has not approved yet cannot enter the portal
-      if(user.status === 'pending'){
-        localStorage.removeItem('ic_session');
-        sessionStorage.setItem('pendingToast', JSON.stringify({message:'Your request to join the class is still waiting for coordinator approval.', type:'warn'}));
-        go('login');
-        return;
-      }
-      applyStudentTheme();
-      personalize(user);
-      if(enforceAlumniPageAccess(user)) return;
-      updateActiveNav(user);
-      syncToggle(user);
-    }
-
-    document.getElementById('toggleStudent')?.addEventListener('click',()=>{
-      const u=currentUserRecord(); if(!u)return;
-      if(isAlumni(u)) return toast('Your account is already in Alumni Status.','info');
-      if(isPending(u)) return toast('Your Alumni status request is still pending.','info');
-      toast('You are currently in Student mode.','info');
-    });
-    document.getElementById('toggleAlumni')?.addEventListener('click',requestAlumniStatus);
-    document.getElementById('alumniPendingBadge')?.addEventListener('click',()=>toast('Your Alumni status request is waiting for coordinator approval.','info'));
-    document.getElementById('cancelAlumniRequestBtn')?.addEventListener('click',closeAlumniModal);
-    document.getElementById('sendAlumniRequestBtn')?.addEventListener('click',sendAlumniRequest);
-    document.getElementById('logoutBtn')?.addEventListener('click',async ()=>{if(!await askConfirm('Log out of InternConnect?'))return;localStorage.removeItem('ic_session');sessionStorage.setItem('pendingToast',JSON.stringify({message:'You have been logged out.',type:'info'}));window.location.href=studentPageMap.login;});
-
-    // Common mobile sidebar
-    const sidebar=document.getElementById('sidebar'),overlay=document.getElementById('overlay'),mobile=document.getElementById('mobileToggle'),close=document.getElementById('mobileCloseBtn');
-    const open=()=>{sidebar?.classList.remove('-translate-x-full');overlay?.classList.remove('hidden');mobile?.classList.add('hidden');};
-    const shut=()=>{sidebar?.classList.add('-translate-x-full');overlay?.classList.add('hidden');mobile?.classList.remove('hidden');};
-    mobile?.addEventListener('click',open);close?.addEventListener('click',shut);overlay?.addEventListener('click',shut);
-
-    document.getElementById('notifBtn')?.addEventListener('click',e=>{e.stopPropagation();document.getElementById('notifDropdown')?.classList.toggle('hidden');});
-    document.addEventListener('click',e=>{const d=document.getElementById('notifDropdown');if(d && !d.contains(e.target) && e.target.id!=='notifBtn')d.classList.add('hidden');});
-
-    // Shared placement records below render attendance and day details for this student.
-    if(currentPage()==='resume') initResume();
-    if(currentPage()==='classwork') initClasswork();
-    if(currentPage()==='taskdetail') initTaskDetail();
-    if(currentPage()==='jobs') initJobs();
-
-    // Attendance controls exist only on the attendance page.
+  function initAttendanceControls(){
     document.getElementById('timeInBtn')?.addEventListener('click',beginTimeIn);
     document.getElementById('cancelAttendancePermissionBtn')?.addEventListener('click',()=>hide('attendancePermissionModal'));
     document.getElementById('allowAttendancePermissionBtn')?.addEventListener('click',allowAttendance);
@@ -4541,7 +4482,79 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     document.getElementById('backToAttendanceBtn')?.addEventListener('click',()=>go('attendance'));
   }
 
-  document.addEventListener('DOMContentLoaded',()=>{ initCommon(); });
+  function registerStudentModules(){
+    window.ICCore = window.ICCore || {};
+    window.ICCore.resume = window.ICCore.resume || {};
+    window.ICCore.resume.init = initResume;
+    window.ICCore.student = window.ICCore.student || {};
+    window.ICCore.student.initClasswork = initClasswork;
+    window.ICCore.student.initTaskDetail = initTaskDetail;
+    window.ICCore.student.initJobs = initJobs;
+    window.ICCore.student.initAccountControls = initStudentAccountControls;
+    window.ICCore.student.initSidebar = initStudentSidebar;
+    window.ICCore.student.initNotifications = initStudentNotifications;
+    window.ICCore.student.initAttendanceControls = initAttendanceControls;
+  }
+
+  function initStudentAccountControls(){
+    document.getElementById('toggleStudent')?.addEventListener('click',()=>{
+      const u=currentUserRecord(); if(!u)return;
+      if(isAlumni(u)) return toast('Your account is already in Alumni Status.','info');
+      if(isPending(u)) return toast('Your Alumni status request is still pending.','info');
+      toast('You are currently in Student mode.','info');
+    });
+    document.getElementById('toggleAlumni')?.addEventListener('click',requestAlumniStatus);
+    document.getElementById('alumniPendingBadge')?.addEventListener('click',()=>toast('Your Alumni status request is waiting for coordinator approval.','info'));
+    document.getElementById('cancelAlumniRequestBtn')?.addEventListener('click',closeAlumniModal);
+    document.getElementById('sendAlumniRequestBtn')?.addEventListener('click',sendAlumniRequest);
+    document.getElementById('logoutBtn')?.addEventListener('click',async ()=>{if(!await askConfirm('Log out of InternConnect?'))return;localStorage.removeItem('ic_session');sessionStorage.setItem('pendingToast',JSON.stringify({message:'You have been logged out.',type:'info'}));window.location.href=studentPageMap.login;});
+  }
+
+  function authorizeStudentSession(){
+    const me = session();
+    if(!me || me.role !== 'student'){ go('login'); return null; }
+    const user = refreshStatusFromUser();
+    if(!user){ go('login'); return null; }
+    if(user.status === 'pending'){
+      localStorage.removeItem('ic_session');
+      sessionStorage.setItem('pendingToast', JSON.stringify({message:'Your request to join the class is still waiting for coordinator approval.', type:'warn'}));
+      go('login');
+      return null;
+    }
+    return user;
+  }
+
+  function hydrateStudentShell(user){
+    applyStudentTheme();
+    personalize(user);
+    if(enforceAlumniPageAccess(user)) return false;
+    updateActiveNav(user);
+    syncToggle(user);
+    return true;
+  }
+
+  function initStudentSidebar(){
+    const sidebar=document.getElementById('sidebar'),overlay=document.getElementById('overlay'),mobile=document.getElementById('mobileToggle'),close=document.getElementById('mobileCloseBtn');
+    const open=()=>{sidebar?.classList.remove('-translate-x-full');overlay?.classList.remove('hidden');mobile?.classList.add('hidden');};
+    const shut=()=>{sidebar?.classList.add('-translate-x-full');overlay?.classList.add('hidden');mobile?.classList.remove('hidden');};
+    mobile?.addEventListener('click',open);close?.addEventListener('click',shut);overlay?.addEventListener('click',shut);
+  }
+
+  function initStudentNotifications(){
+    document.getElementById('notifBtn')?.addEventListener('click',e=>{e.stopPropagation();document.getElementById('notifDropdown')?.classList.toggle('hidden');});
+    document.addEventListener('click',e=>{const d=document.getElementById('notifDropdown');if(d && !d.contains(e.target) && e.target.id!=='notifBtn')d.classList.add('hidden');});
+  }
+
+  window.ICCore = window.ICCore || {};
+  window.ICCore.student = window.ICCore.student || {};
+  window.ICCore.student.authorize = authorizeStudentSession;
+  window.ICCore.student.hydrate = hydrateStudentShell;
+  window.ICCore.student.registerModules = registerStudentModules;
+  window.ICCore.student.session = session;
+  window.ICCore.student.navigate = go;
+  window.ICCore.student.currentUser = currentUserRecord;
+  window.ICCore.student.ui = { show, hide, toast };
+  window.ICCore.student.profile = { applyStudentTheme, personalize, updateActiveNav, syncToggle, enforceAlumniPageAccess, refreshStatusFromUser };
   window.addEventListener('beforeunload',stopAttendanceCamera);
 })();
 
