@@ -194,6 +194,10 @@ html[data-theme="rose"]{--navA:rgba(244,63,94,0.18);}
 }
 
 /* Registration password feedback */
+.password-input-wrap{position:relative;}
+.password-input-wrap input{padding-right:38px;}
+.password-visibility-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:24px;height:24px;border-radius:4px;color:#94A3B8;display:flex;align-items:center;justify-content:center;font-size:11px;}
+.password-visibility-btn:hover,.password-visibility-btn:focus{color:#475569;background:#F1F5F9;outline:none;}
 .password-strength{margin-top:8px;}
 .password-strength-track{height:5px;background:#E2E8F0;border-radius:999px;overflow:hidden;}
 .password-strength-fill{height:100%;width:0;border-radius:inherit;transition:width .2s,background-color .2s;}

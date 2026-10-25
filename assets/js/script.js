@@ -462,13 +462,38 @@ function passwordRequirements(password){
 }
 
 // Shared live feedback for student, coordinator and partner registration.
+(function initPasswordVisibility(){
+    ['regPassword', 'regPasswordConfirm'].forEach(id => {
+        const input = document.getElementById(id);
+        if(!input || input.parentElement.classList.contains('password-input-wrap')) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'password-input-wrap';
+        input.parentElement.insertBefore(wrap, input);
+        wrap.appendChild(input);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'password-visibility-btn';
+        button.setAttribute('aria-label', 'Show password');
+        button.innerHTML = '<i class="fa-solid fa-eye" aria-hidden="true"></i>';
+        button.addEventListener('click', () => {
+            const visible = input.type === 'text';
+            input.type = visible ? 'password' : 'text';
+            button.setAttribute('aria-label', visible ? 'Show password' : 'Hide password');
+            button.innerHTML = '<i class="fa-solid ' + (visible ? 'fa-eye' : 'fa-eye-slash') + '" aria-hidden="true"></i>';
+        });
+        wrap.appendChild(button);
+    });
+})();
+
 (function initPasswordStrength(){
     const input = document.getElementById('regPassword');
     if(!input) return;
     const feedback = document.createElement('div');
     feedback.className = 'password-strength';
     feedback.innerHTML = '<div class="password-strength-track" role="meter" aria-label="Password strength" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0"><div class="password-strength-fill"></div></div><p id="passwordStrengthLabel" class="password-strength-label" aria-live="polite"></p><p id="passwordStrengthHint" class="password-strength-hint"></p>';
-    input.after(feedback);
+    const inputWrap = input.closest('.password-input-wrap');
+    if(inputWrap) inputWrap.after(feedback);
+    else input.after(feedback);
     input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), 'passwordStrengthLabel', 'passwordStrengthHint'].filter(Boolean).join(' '));
     const meter = feedback.querySelector('[role="meter"]');
     const checklist = document.createElement('ul');
@@ -563,10 +588,9 @@ on('regNext1', 'click', () => {
 });
 
 function registrationEmailError(email, role, usePersonalEmail){
-    if(!/^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email)) return 'Enter a valid email address, such as user@example.com.';
-    if(role !== 'partnercompany' && !usePersonalEmail && email.split('@')[1].toLowerCase() !== 'phinmaed.com'){
-        return 'Use your school email ending in @phinmaed.com, or select the personal email option.';
-    }
+    const hasValidFormat = /^[^\s@]+@[^\s@]+\.[^\s@.]+(?:\.[^\s@.]+)*$/i.test(email);
+    const hasAllowedEnding = /\.(?:edu|edu\.ph|com)$/i.test(email);
+    if(!hasValidFormat || !hasAllowedEnding) return 'Use a valid email ending in .edu, .edu.ph, or .com.';
     return '';
 }
 
@@ -4157,10 +4181,6 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
   }
 
   function initResume(){
-    document.getElementById('createResumeManuallyBtn')?.addEventListener('click', () => {
-      document.querySelector('.resume-subtab-btn[data-resumetab="resume-edit"]')?.click();
-      document.getElementById('ed-name')?.focus();
-    });
     document.querySelectorAll('.resume-subtab-btn').forEach(btn=>btn.addEventListener('click',()=>{
       document.querySelectorAll('.resume-subtab-btn').forEach(b=>b.classList.remove('active'));
       document.querySelectorAll('.resume-subtab-panel').forEach(p=>p.classList.add('hidden'));
