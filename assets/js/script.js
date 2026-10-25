@@ -252,8 +252,16 @@ if(sidebar && !isStudentPortal){
     // Notifications Dropdown
     const notifBtn = document.getElementById('notifBtn');
     const notifDropdown = document.getElementById('notifDropdown');
-    notifBtn.addEventListener('click', (e) => { e.stopPropagation(); notifDropdown.classList.toggle('hidden'); });
-    document.addEventListener('click', (e) => { if(!notifDropdown.contains(e.target)) notifDropdown.classList.add('hidden'); });
+    notifBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        notifDropdown?.classList.toggle('hidden');
+        notifBtn.querySelector('.notification-dot')?.classList.add('hidden');
+        notifBtn.setAttribute('aria-label', 'Notifications');
+    });
+    const coordinatorNotifList = notifDropdown?.querySelector('.divide-y');
+    if(coordinatorNotifList && !isStudentPortal) coordinatorNotifList.innerHTML = '';
+    if(notifBtn && !isStudentPortal) notifBtn.querySelector('.notification-dot')?.classList.add('hidden');
+    document.addEventListener('click', (e) => { if(notifDropdown && !notifDropdown.contains(e.target)) notifDropdown.classList.add('hidden'); });
 }
 
 // Export Buttons
@@ -917,6 +925,20 @@ function renderJoinRequests(){
     fill('wr-partners', 'partnercompany', 'No pending partner company requests.');
     updateRequestCounts();
 }
+function updateSidebarRequestBadge(){
+    const badge = document.getElementById('waitingBadge');
+    if(!badge) return;
+    const code = activeClassCode();
+    const real = getUsers().filter(u => u.classCode === code && u.status === 'pending').length;
+    const sampleDone = getJSON(SAMPLE_JOINS_KEY, []);
+    const sample = code === SEED_CODE ? SAMPLE_JOINS.filter(x => !sampleDone.includes(x.sample)).length : 0;
+    const count = real + sample;
+    const viewedRequests = !!document.getElementById('tab-requests');
+    badge.textContent = String(count);
+    badge.classList.toggle('hidden', !count || viewedRequests);
+    badge.setAttribute('aria-label', count + ' pending requests');
+}
+updateSidebarRequestBadge();
 if(document.getElementById('wr-students')) renderJoinRequests();
 
 // Approve and Reject (approved students become Interns, rejected sign ups are deleted). Both are written to the audit trail.
@@ -944,6 +966,7 @@ document.addEventListener('click', async (e) => {
     }
     logAudit((approve ? 'Approved ' : 'Rejected ') + name + (isPartner ? "'s partner link request" : "'s request to join") + ' (' + activeClassCode() + ')', approve ? 'Success' : 'Deleted');
     renderJoinRequests();
+    updateSidebarRequestBadge();
     if(approve) showToast(name + (isPartner ? ' approved and added to the Partner & MOA Directory.' : ' approved and added to the class.'), 'success');
     else showToast(name + "'s request was rejected.", 'warn');
 });
@@ -4780,9 +4803,11 @@ if(document.body.dataset.role === 'student') document.addEventListener('DOMConte
         const del = p.status === 'Completed' ? getDeletionRequests().find(r => r.name === me.name) : null;
         if(del && del.status === 'held') items.push({date: del.heldAt, icon: 'fa-hand', tone: 'bg-amber-50 text-amber-500', text: 'Your deletion request is on hold: ' + esc(del.holdReason)});
         const top = items.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 6);
-        const empty = '<div class="px-4 py-3 text-[12.5px] text-slate-400">Nothing new yet.</div>';
+        const empty = '';
         const drop = document.querySelector('#notifDropdown .divide-y');
         if(drop) drop.innerHTML = top.length ? top.map(x => '<div class="px-4 py-3 text-[12.5px] text-slate-700 hover:bg-slate-50">' + x.text + '<div class="text-[10.5px] text-slate-400 mt-0.5">' + (x.date ? formatDate(x.date) : '') + '</div></div>').join('') : empty;
+        const topButton = document.getElementById('notifBtn');
+        if(topButton) topButton.querySelector('.notification-dot')?.classList.toggle('hidden', !top.length);
         const recent = [...document.querySelectorAll('#tab-overview h2')].find(x => x.textContent.trim() === 'Recent Activity');
         const box = recent && recent.closest('.bg-white').querySelector('.divide-y');
         if(box) box.innerHTML = top.length ? top.map(x => '<div class="flex items-start gap-3 px-5 py-3"><div class="w-7 h-7 rounded-full ' + x.tone + ' flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid ' + x.icon + ' text-[11px]"></i></div>'
@@ -5335,3 +5360,8 @@ if(document.body.dataset.ppage) (function(){
         render();
     }
 })();
+
+// Registered last so all preceding DOMContentLoaded renderers finish before reveal.
+document.addEventListener('DOMContentLoaded', () => {
+    document.documentElement.classList.add('app-ready');
+}, {once: true});
