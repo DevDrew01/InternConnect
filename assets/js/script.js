@@ -219,7 +219,8 @@ function closeSidebar(){
     mobileToggle.classList.remove('hidden');
 }
 
-if(sidebar && !isStudentPortal){
+function initCoordinatorSidebar(){
+    if(!(sidebar && !isStudentPortal)) return;
     // Nav Links (go to the matching page, logout goes back to login)
     document.querySelectorAll('.nav-link').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -263,15 +264,9 @@ if(sidebar && !isStudentPortal){
     if(notifBtn && !isStudentPortal) notifBtn.querySelector('.notification-dot')?.classList.add('hidden');
     document.addEventListener('click', (e) => { if(notifDropdown && !notifDropdown.contains(e.target)) notifDropdown.classList.add('hidden'); });
 }
-
-// Export Buttons
-document.querySelectorAll('.export-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const label = btn.textContent.trim();
-        showToast('Preparing "' + label + '" your download will start shortly.', 'info');
-    });
-});
-
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initSidebar = initCoordinatorSidebar;
 
 /* ============ Accounts and Themes (prototype "database" in localStorage) ============ */
 
@@ -938,8 +933,17 @@ function updateSidebarRequestBadge(){
     badge.classList.toggle('hidden', !count || viewedRequests);
     badge.setAttribute('aria-label', count + ' pending requests');
 }
-updateSidebarRequestBadge();
-if(document.getElementById('wr-students')) renderJoinRequests();
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.updateRequestBadge = updateSidebarRequestBadge;
+function initCoordinatorJoinRequests(){
+    if(document.getElementById('wr-students')) renderJoinRequests();
+}
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.shared = { goTo, openModal, closeModal, askConfirm, showToast, activeClassCode, activeClass, refreshHeaderCode, logAudit };
+window.ICCore.coordinator.initJoinRequests = initCoordinatorJoinRequests;
+window.ICCore.coordinator.initRequests = initCoordinatorJoinRequests;
 
 // Approve and Reject (approved students become Interns, rejected sign ups are deleted). Both are written to the audit trail.
 document.addEventListener('click', async (e) => {
@@ -1170,7 +1174,8 @@ async function taskAction(id, act){
     renderTasks();
 }
 
-if(document.getElementById('taskList')){
+function initCoordinatorTaskList(){
+    if(!document.getElementById('taskList')) return;
     document.getElementById('taskList').addEventListener('click', (e) => {
         const card = e.target.closest('.task-card');
         if(!card) return;
@@ -1196,12 +1201,13 @@ if(document.getElementById('taskList')){
     });
     document.addEventListener('click', closeTaskMenus);
     document.querySelectorAll('.task-filter').forEach(b => b.addEventListener('click', () => { taskFilter = b.dataset.filter; renderTasks(); }));
-    document.addEventListener('DOMContentLoaded', () => {
-        renderTasks();
-        const editId = new URLSearchParams(window.location.search).get('edit');
-        if(editId && findTask(editId)) openTaskModal(findTask(editId));
-    });
+    renderTasks();
+    const editId = new URLSearchParams(window.location.search).get('edit');
+    if(editId && findTask(editId)) openTaskModal(findTask(editId));
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initTaskList = initCoordinatorTaskList;
 
 
 // Batch Selector (switches the current batch)
@@ -1212,7 +1218,8 @@ function updateBatchBadge(){
     badge.textContent = capitalize(cls.status);
     badge.className = 'text-[10.5px] font-semibold border px-2 py-0.5 rounded-full ' + STATUS_BADGE[cls.status];
 }
-if(document.getElementById('batchSelect')){
+function initCoordinatorBatchSelector(){
+    if(!document.getElementById('batchSelect')) return;
     const sel = document.getElementById('batchSelect');
     const active = activeClassCode();
     sel.innerHTML = myClasses().filter(c => c.status !== 'archived').map(c =>
@@ -1226,6 +1233,7 @@ if(document.getElementById('batchSelect')){
         showToast('Switched to ' + sel.options[sel.selectedIndex].text + '.', 'info');
     });
 }
+window.ICCore.coordinator.initBatchSelector = initCoordinatorBatchSelector;
 
 
 /* ============ Task Detail ============ */
@@ -1388,14 +1396,16 @@ function showTaskMissing(){
     ['taskDetailDue', 'taskDetailAttachment', 'taskDetailAttachList', 'taskDetailCount', 'taskDetailStatus', 'td-editTaskBtn', 'taskSplit', 'taskNoSubs']
         .forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
 }
-if(document.getElementById('taskSubmissionsList')){
-    document.addEventListener('DOMContentLoaded', () => {   // after the whole script is loaded (live counts read the roster)
-        const id = new URLSearchParams(window.location.search).get('task');
-        const t = id && findTask(id);
-        if(t && t.classCode === activeClassCode()) renderTaskDetail(id);
-        else showTaskMissing();
-    });
+function initCoordinatorTaskDetail(){
+    if(!document.getElementById('taskSubmissionsList')) return;
+    const id = new URLSearchParams(window.location.search).get('task');
+    const t = id && findTask(id);
+    if(t && t.classCode === activeClassCode()) renderTaskDetail(id);
+    else showTaskMissing();
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initTaskDetail = initCoordinatorTaskDetail;
 
 on('backToClassworkBtn', 'click', () => goTo('classwork'));
 on('td-editTaskBtn', 'click', () => { window.location.href = pages.classwork + '?edit=' + encodeURIComponent(currentTaskId); });
@@ -1451,15 +1461,6 @@ function currentReport(){
 }
 const reportName = (r, ext) => 'Accomplishment_Report_' + fileSlug(r.sub.name) + '_' + fileSlug(r.t.title) + '.' + ext;
 const cleanText = (text) => String(text || '').replace(/\t/g, '    ');
-function saveFile(filename, blob){
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
 on('td-genPdfBtn', 'click', () => {
     const lib = window.jspdf && window.jspdf.jsPDF;
     if(!lib){ showToast('The PDF library could not load (are you offline?). Try the Word option instead.', 'warn'); return; }
@@ -1468,12 +1469,7 @@ on('td-genPdfBtn', 'click', () => {
     const rgb = (name, fallback) => { const h = css.getPropertyValue(name).trim().replace('#', ''); return /^[0-9a-f]{6}$/i.test(h) ? [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)) : fallback; };
     const dark = rgb('--bd', [15, 23, 42]), accent = rgb('--b600', [2, 132, 199]);
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 48, width = W - M * 2;
-    doc.setFillColor(...dark); doc.rect(0, 0, W, 78, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
-    doc.text(doc.splitTextToSize(r.t.title, width)[0], M, 36);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text('Accomplishment report  |  ' + r.sub.name, M, 56);
-    let y = 108;
+    let y = drawExportHeader(doc, r.t.title, ['Accomplishment report  |  ' + r.sub.name], M);
     const line = (text, size, bold, color, gap) => {
         doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(size); doc.setTextColor(...color);
         doc.splitTextToSize(cleanText(text), width).forEach(l => {
@@ -1509,6 +1505,7 @@ on('td-genWordBtn', 'click', () => {
     const fb = r.sub.feedback || (r.grade && r.grade.feedback);
     const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>' + esc(r.t.title) + '</title></head>'
         + '<body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1e293b">'
+        + '<table style="width:100%;margin-bottom:12pt"><tr><td style="width:50%;text-align:left"><img src="../../assets/img/phinma-sjcdc-logo-left.png" alt="St. Jude College" style="width:180px;height:auto"></td><td style="width:50%;text-align:right"><img src="../../assets/img/phinma-sjcdc-logo-right.png" alt="PHINMA Education" style="width:180px;height:auto"></td></tr></table>'
         + '<h1 style="font-size:18pt;margin-bottom:2pt">' + esc(r.t.title) + '</h1>'
         + '<p style="color:#64748b;margin-top:0">Accomplishment report &middot; ' + esc(r.sub.name) + '<br>' + esc(r.sub.meta || '') + '<br><b>Status:</b> ' + esc(r.sub.status) + (r.sub.late ? ' (late)' : '') + '</p>'
         + '<h3 style="color:#0369a1;font-size:10pt">ACCOMPLISHMENT REPORT</h3><p>' + para(r.sub.raw) + '</p>'
@@ -1561,8 +1558,9 @@ function renderClasses(){
     }).join('');
 }
 
-if(document.getElementById('classList')){
-    document.addEventListener('DOMContentLoaded', renderClasses);
+function initCoordinatorClasses(){
+  if(!document.getElementById('classList')) return;
+    renderClasses();
     on('showArchived', 'change', renderClasses);
 
     document.getElementById('classList').addEventListener('click', async (e) => {
@@ -1624,6 +1622,9 @@ if(document.getElementById('classList')){
         showToast('Batch created. Class code: ' + code, 'success');
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initClasses = initCoordinatorClasses;
 
 
 /* ============ Vault data (pages below use it) ============ */
@@ -1782,8 +1783,9 @@ function logAudit(action, status, system){
     const key = auditStorageKey(sess), all = getJSON(key, []);
     all.push({at: isoDate(d) + ' ' + d.toTimeString().slice(0, 8), action, status: status || 'Success',
         user: system ? 'system-auto' : (sess.role === 'partnercompany' ? 'partner-' : 'coord-') + (sess.name || 'coordinator').split(/\s+/).map(w => w[0]).join('').toLowerCase() + '-001',
-        ip: system ? 'internal' : '203.177.**.**'});
-    localStorage.setItem(key, JSON.stringify(all.slice(-500)));
+        source: system ? 'system' : 'client'});
+    if(window.ICCore?.storage) window.ICCore.storage.setJSON(key, all.slice(-500));
+    else localStorage.setItem(key, JSON.stringify(all.slice(-500)));
 }
 
 // Work schedule of a deployed intern, set by the coordinator at deployment (partners may update it if they use the portal)
@@ -2096,7 +2098,8 @@ function renderRoster(){
     }));
 }
 
-if(document.getElementById('rosterInternsBody')){
+function initCoordinatorRoster(){
+  if(!document.getElementById('rosterInternsBody')) return;
     loadRoster();
     renderRoster();
     on('backToClassesBtn', 'click', () => goTo('classes'));
@@ -2144,6 +2147,9 @@ if(document.getElementById('rosterInternsBody')){
         showToast('Batch closed. ' + ready.length + ' moved to Alumni, ' + ongoing + ' still ongoing.', 'success');
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initRoster = initCoordinatorRoster;
 
 
 /* ============ Attendance and Progress ============ */
@@ -2227,12 +2233,16 @@ function filterAttendance(){
 on('studentSearch', 'input', filterAttendance);
 on('companyFilter', 'change', filterAttendance);
 on('statusFilter', 'change', filterAttendance);
-if(document.getElementById('attendanceTbody')){
+function initCoordinatorAttendanceTable(){
+if(!document.getElementById('attendanceTbody')) return;
     document.getElementById('companyFilter').insertAdjacentHTML('beforeend', partnerNames().map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join(''));
     const chip = document.getElementById('attProgram');
     if(chip) chip.textContent = 'Program: ' + (programShort((getJSON('ic_session', null) || {}).program || '') || 'All');
     renderAttendance();
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initAttendanceTable = initCoordinatorAttendanceTable;
 
 /* ---------- Export the roster on screen (Excel or PDF) ---------- */
 function attendanceExportData(){
@@ -2270,12 +2280,11 @@ function exportAttendancePdf(){
     const rgb = (n, fb) => { const h = css.getPropertyValue(n).trim().replace('#', ''); return /^[0-9a-f]{6}$/i.test(h) ? [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)) : fb; };
     const dark = rgb('--bd', [15, 23, 42]), accent = rgb('--b600', [2, 132, 199]);
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 40;
-    doc.setFillColor(...dark); doc.rect(0, 0, W, 76, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text('Attendance & Progress', M, 36);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text(det['Batch (class code)'] + '  -  ' + det['Interns listed'] + ' interns  -  ' + det['On track'] + ' on track, ' + det['At-risk'] + ' at-risk', M, 56);
-    doc.text('Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : ''), W - M, 56, {align: 'right'});
-    doc.autoTable({startY: 96, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
+    const contentY = drawExportHeader(doc, 'Attendance & Progress', [
+        det['Batch (class code)'] + '  -  ' + det['Interns listed'] + ' interns  -  ' + det['On track'] + ' on track, ' + det['At-risk'] + ' at-risk',
+        'Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : '')
+    ], M);
+    doc.autoTable({startY: contentY, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
         head: [['Student', 'Company', 'Setup', 'Hours', 'Progress', 'Expected', 'Risk level', 'Flagged']],
         body: d.rows.length ? d.rows.map(r => [r[0] + (r[1] ? '\n' + r[1] : ''), r[2], r[3], r[4] + ' / ' + r[5], r[6] + '%', r[7] === '' ? '-' : r[7] + ' h', r[8], r[9] || '']) : [['No interns match.', '', '', '', '', '', '', '']],
         styles: {fontSize: 9.5, cellPadding: 5, textColor: [30, 41, 59]}, headStyles: {fillColor: accent, textColor: 255, fontStyle: 'bold'}, alternateRowStyles: {fillColor: [248, 250, 252]},
@@ -2287,7 +2296,8 @@ function exportAttendancePdf(){
     doc.save(attendanceFile('pdf'));
     return true;
 }
-if(document.getElementById('exportAttBtn')){
+function initCoordinatorAttendanceExport(){
+    if(!document.getElementById('exportAttBtn')) return;
     const btn = document.getElementById('exportAttBtn'), menu = document.getElementById('exportAttMenu');
     const setMenu = (open) => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
     btn.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.classList.contains('hidden')); });
@@ -2304,6 +2314,9 @@ if(document.getElementById('exportAttBtn')){
         showToast('Attendance and progress downloaded as ' + label + '.', 'success');
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initAttendanceExport = initCoordinatorAttendanceExport;
 
 // Holidays and no-work days: pick a Philippine holiday or type one in (suspensions, company events)
 function holidayModal(){
@@ -2361,12 +2374,17 @@ function fillHolidayModal(){
         + PH_HOLIDAYS_2026.filter(h => !list.some(x => x.date === h[0])).map(h => '<option value="' + h[0] + '">' + formatDate(h[0]) + ' · ' + esc(h[1]) + ' (' + h[2] + ')</option>').join('');
     document.getElementById('holidaysCount').textContent = '(' + list.length + ')';
 }
-if(document.getElementById('holidaysBtn')){
+function initCoordinatorHolidays(){
+    if(!document.getElementById('holidaysBtn')) return;
     document.getElementById('holidaysCount').textContent = '(' + getHolidays().length + ')';
     on('holidaysBtn', 'click', holidayModal);
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initHolidays = initCoordinatorHolidays;
 
 // View Log opens the Intern profile, Files opens the intern's folder in their partner's vault
+function initCoordinatorAttendanceLinks(){
 document.getElementById('attendanceTbody')?.addEventListener('click', (e) => {
     const btn = e.target.closest('.attendance-files, .attendance-log');
     if(!btn) return;
@@ -2375,6 +2393,10 @@ document.getElementById('attendanceTbody')?.addEventListener('click', (e) => {
     if(btn.classList.contains('attendance-log')) window.location.href = profileLink(name) + '#attendance';
     else openInternFiles(row.dataset.company, name);
 });
+}
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initAttendanceLinks = initCoordinatorAttendanceLinks;
 
 
 /* ============ Partner and MOA Directory ============ */
@@ -2812,7 +2834,8 @@ async function placementAction(name, act){
     renderPlacements();
 }
 
-if(document.getElementById('placementTbody')){
+function initCoordinatorPlacements(){
+if(!document.getElementById('placementTbody')) return;
     renderPlacements();
     on('placementSearch', 'input', renderPlacements);
     document.getElementById('placementStages').addEventListener('click', (e) => {
@@ -2837,6 +2860,9 @@ if(document.getElementById('placementTbody')){
         showToast(esc(applyTarget) + "'s application to " + esc(company) + ' recorded. Upload the signed endorsement letter to their vault folder.', 'success');
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initPlacements = initCoordinatorPlacements;
 
 
 /* ============ Intern Profile ============ */
@@ -3049,7 +3075,8 @@ function renderProfile(name){
       + '<div class="space-y-4">' + requirements + timeline + jobsCard + '</div></div>';
 }
 
-if(document.getElementById('internProfile')){
+function initCoordinatorInternProfile(){
+if(!document.getElementById('internProfile')) return;
     const profileName = new URLSearchParams(window.location.search).get('name') || '';
     renderProfile(profileName);
     document.getElementById('internProfile').addEventListener('change', (e) => {
@@ -3105,6 +3132,9 @@ if(document.getElementById('internProfile')){
         renderProfile(profileName);
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initInternProfile = initCoordinatorInternProfile;
 
 
 /* ============ Alumni Deletion Requests ============ */
@@ -3214,7 +3244,8 @@ function renderDeletionRequests(){
         + (processed.length ? '<div class="pt-3 space-y-2.5"><div class="text-[11px] uppercase tracking-wide font-semibold text-slate-400">Processed</div>' + processed.map(deletionCard).join('') + '</div>' : '');
     updateRequestCounts();
 }
-if(document.getElementById('wr-deletions')){
+function initCoordinatorDeletions(){
+if(!document.getElementById('wr-deletions')) return;
     renderDeletionRequests();
     document.getElementById('wr-deletions').addEventListener('click', async (e) => {
         const btn = e.target.closest('[data-del-act]');
@@ -3241,6 +3272,9 @@ if(document.getElementById('wr-deletions')){
         renderDeletionRequests();
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initDeletions = initCoordinatorDeletions;
 
 
 /* ============ Audit Trail ============ */
@@ -3252,19 +3286,25 @@ function renderAudit(){
     const rows = auditRows();
     document.getElementById('auditTbody').innerHTML = rows.length ? rows.map(a => '<tr>'
         + '<td class="px-5 py-3 text-slate-500 font-mono text-[11.5px] whitespace-nowrap">' + esc(a.at) + '</td><td class="px-5 py-3 text-slate-600">' + esc(a.user) + '</td>'
-        + '<td class="px-5 py-3 text-slate-700">' + esc(a.action) + '</td><td class="px-5 py-3 text-slate-500 font-mono text-[11.5px]">' + esc(a.ip) + '</td>'
+        + '<td class="px-5 py-3 text-slate-700">' + esc(a.action) + '</td>'
         + '<td class="px-5 py-3"><span class="text-[11px] font-medium px-2 py-0.5 rounded-full ' + (AUDIT_BADGE[a.status] || AUDIT_BADGE.Success) + '">' + esc(a.status) + '</span></td></tr>').join('')
-        : '<tr><td colspan="5" class="px-5 py-8 text-center text-[12.5px] text-slate-400">No activity logged yet.</td></tr>';
+        : '<tr><td colspan="4" class="px-5 py-8 text-center text-[12.5px] text-slate-400">No activity logged yet.</td></tr>';
 }
 function auditExportData(){
     const list = auditRows(), me = getJSON('ic_session', null) || {};
-    const head = ['Timestamp', 'User ID', 'Action taken', 'IP address', 'Status'];
-    const rows = list.map(a => [a.at, a.user, a.action, a.ip, a.status]);
+    const head = ['Timestamp', 'User ID', 'Action taken', 'Status'];
+    const rows = list.map(a => [a.at, a.user, a.action, a.status]);
     const statuses = [...new Set(list.map(a => a.status))];
     const details = [['Report', 'Audit trail and security log'], ['Batch (class code)', activeClassCode()], ['Generated on', todayISO()], ['Generated by', me.name || me.email || ''], ['Entries', rows.length]]
         .concat(statuses.map(s => ['Status: ' + s, list.filter(a => a.status === s).length]));
     return {head, rows, details};
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.audit = window.ICCore.audit || {};
+window.ICCore.audit.render = renderAudit;
+window.ICCore.audit.rows = auditRows;
+window.ICCore.audit.exportData = auditExportData;
+window.ICCore.audit.log = logAudit;
 const auditFile = (ext) => 'Audit_Log_' + fileSlug(activeClassCode() || 'batch') + '_' + todayISO() + '.' + ext;
 function exportAuditXlsx(){
     if(typeof XLSX === 'undefined'){ showToast('The Excel library could not load (are you offline?). Use the PDF option instead.', 'warn'); return false; }
@@ -3287,43 +3327,24 @@ function exportAuditPdf(){
     const rgb = (n, fb) => { const h = css.getPropertyValue(n).trim().replace('#', ''); return /^[0-9a-f]{6}$/i.test(h) ? [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)) : fb; };
     const dark = rgb('--bd', [15, 23, 42]), accent = rgb('--b600', [2, 132, 199]);
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 40;
-    doc.setFillColor(...dark); doc.rect(0, 0, W, 76, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text('Audit Trail & Security Log', M, 36);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text(safe(det['Batch (class code)']) + '  -  ' + det['Entries'] + ' entries  -  RA 10173 activity log', M, 56);
-    doc.text('Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + safe(det['Generated by']) : ''), W - M, 56, {align: 'right'});
-    doc.autoTable({startY: 96, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
+    const contentY = drawExportHeader(doc, 'Audit Trail & Security Log', [
+        safe(det['Batch (class code)']) + '  -  ' + det['Entries'] + ' entries  -  RA 10173 activity log',
+        'Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + safe(det['Generated by']) : '')
+    ], M);
+    doc.autoTable({startY: contentY, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
         head: [d.head],
-        body: d.rows.length ? d.rows.map(r => r.map(safe)) : [['No activity logged yet.', '', '', '', '']],
+        body: d.rows.length ? d.rows.map(r => r.map(safe)) : [['No activity logged yet.', '', '', '']],
         styles: {fontSize: 8.5, cellPadding: 4, textColor: [30, 41, 59]}, headStyles: {fillColor: accent, textColor: 255, fontStyle: 'bold'}, alternateRowStyles: {fillColor: [248, 250, 252]},
-        columnStyles: {0: {cellWidth: 90}, 1: {cellWidth: 90}, 3: {cellWidth: 80}, 4: {cellWidth: 62}},
-        didParseCell: (h) => { if(h.section === 'body' && h.column.index === 4){ const t = h.cell.raw; h.cell.styles.fontStyle = 'bold'; h.cell.styles.textColor = ['Success', 'Verified'].includes(t) ? [5, 150, 105] : ['Flagged', 'Hold', 'Pending'].includes(t) ? [217, 119, 6] : [100, 116, 139]; } }});
+        columnStyles: {0: {cellWidth: 105}, 1: {cellWidth: 105}, 3: {cellWidth: 70}},
+        didParseCell: (h) => { if(h.section === 'body' && h.column.index === 3){ const t = h.cell.raw; h.cell.styles.fontStyle = 'bold'; h.cell.styles.textColor = ['Success', 'Verified'].includes(t) ? [5, 150, 105] : ['Flagged', 'Hold', 'Pending'].includes(t) ? [217, 119, 6] : [100, 116, 139]; } }});
     const pages = doc.getNumberOfPages();
     for(let i = 1; i <= pages; i++){ doc.setPage(i); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120, 130, 145);
         doc.text('InternConnect  |  Audit trail & security log  |  ' + det['Generated on'], M, H - 22); doc.text('Page ' + i + ' of ' + pages, W - M, H - 22, {align: 'right'}); }
     doc.save(auditFile('pdf'));
     return true;
 }
-if(document.getElementById('auditTbody')){
-    getDeletionRequests();
-    renderAudit();
-    const btn = document.getElementById('exportAuditBtn'), menu = document.getElementById('exportAuditMenu');
-    const setMenu = (open) => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
-    btn.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.classList.contains('hidden')); });
-    document.addEventListener('click', (e) => { if(!menu.contains(e.target)) setMenu(false); });
-    document.addEventListener('keydown', (e) => { if(e.key === 'Escape') setMenu(false); });
-    menu.addEventListener('click', (e) => {
-        const item = e.target.closest('[data-export]');
-        if(!item) return;
-        setMenu(false);
-        const label = item.dataset.export === 'xlsx' ? 'Excel' : 'PDF';
-        try { if(!(item.dataset.export === 'xlsx' ? exportAuditXlsx() : exportAuditPdf())) return; }
-        catch(err){ console.error(err); showToast('Could not create the file. Please try again.', 'warn'); return; }
-        logAudit('Exported the audit trail log (' + label + ')');
-        renderAudit();
-        showToast('Audit log downloaded as ' + label + '.', 'success');
-    });
-}
+window.ICCore.audit.exportXlsx = exportAuditXlsx;
+window.ICCore.audit.exportPdf = exportAuditPdf;
 
 
 /* ============ Overview: pipeline, needs attention, task tracker ============ */
@@ -3395,7 +3416,12 @@ function renderOverview(){
           + '<div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full ' + (full ? 'bg-emerald-500' : 'bg-sky-600') + '" style="width:' + pct + '%"></div></div></a>';
     }).join('') : '<div class="px-5 py-6 text-[12.5px] text-slate-400 text-center">No active tasks.</div>';
 }
-if(document.getElementById('overviewPipeline')) renderOverview();
+function initCoordinatorOverview(){
+    if(document.getElementById('overviewPipeline')) renderOverview();
+}
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initOverview = initCoordinatorOverview;
 
 
 /* ============ Overview: Export Summary (Excel + PDF) ============ */
@@ -3456,17 +3482,10 @@ function exportOverviewPdf(){
     const accent = rgb('--b600', [2, 132, 199]), dark = rgb('--bd', [15, 23, 42]);
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 40;
 
-    // Header band
-    doc.setFillColor(...dark);
-    doc.rect(0, 0, W, 82, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(19);
-    doc.text('Overview Dashboard Summary', M, 38);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text([det['Batch (class code)'], det['Program'], det['Term']].filter(Boolean).join('  -  '), M, 58);
-    doc.text('Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : ''), M, 72);
-
-    let y = 108;
+    let y = drawExportHeader(doc, 'Overview Dashboard Summary', [
+        [det['Batch (class code)'], det['Program'], det['Term']].filter(Boolean).join('  -  '),
+        'Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : '')
+    ], M);
     const section = (title, needed) => {
         if(y > H - (needed || 110)){ doc.addPage(); y = M; }
         doc.setTextColor(...dark); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
@@ -3533,7 +3552,8 @@ function exportOverviewXlsx(){
     return true;
 }
 
-if(document.getElementById('exportSummaryBtn')){
+function initCoordinatorSummaryExport(){
+    if(!document.getElementById('exportSummaryBtn')) return;
     const btn = document.getElementById('exportSummaryBtn');
     const menu = document.getElementById('exportSummaryMenu');
     const setMenu = (open) => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
@@ -3557,6 +3577,9 @@ if(document.getElementById('exportSummaryBtn')){
         showToast('Overview summary downloaded as ' + label + '.', 'success');
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initSummaryExport = initCoordinatorSummaryExport;
 
 
 /* ============ Alumni Status Requests (shared local prototype storage) ============ */
@@ -3645,7 +3668,12 @@ document.addEventListener('click', async (e) => {
         if(card) processAlumniRequest(card.dataset.alumniRequestEmail, approve ? 'approve' : 'reject');
     }
 });
-if(document.getElementById('wr-students') || document.body.dataset.page === 'requests') renderAlumniRequestSection();
+function initCoordinatorAlumniRequests(){
+    if(document.getElementById('wr-students') || document.body.dataset.page === 'requests') renderAlumniRequestSection();
+}
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initAlumniRequests = initCoordinatorAlumniRequests;
 
 
 /* ============ Student / Alumni Portal (student pages only) ============ */
@@ -4111,7 +4139,9 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     if(!Pdf) return toast('The PDF library could not load. Please check your connection and try again.', 'warn');
     const doc = new Pdf({unit:'pt', format:'a4'}), width = doc.internal.pageSize.getWidth(), height = doc.internal.pageSize.getHeight();
     const margin = 48, lineWidth = width - margin * 2;
-    let y = 54;
+    addExportLogo(doc);
+    doc.setTextColor(15, 23, 42);
+    let y = 108;
     const line = (value, size, bold, gap) => {
       doc.setFont('helvetica', bold ? 'bold' : 'normal');
       doc.setFontSize(size);
@@ -4211,11 +4241,12 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     }));
     wireTagInput('techTagInput','');
     wireTagInput('softTagInput','soft');
-    document.querySelectorAll('.example-chip').forEach(btn => btn.addEventListener('click', () => {
-      const input = document.getElementById(btn.dataset.exampleFor);
-      if(!input) return;
-      input.value = btn.textContent.trim();
+    document.querySelectorAll('select.example-chip, select[data-example-for]').forEach(select => select.addEventListener('change', () => {
+      const input = document.getElementById(select.dataset.exampleFor), value = select.value;
+      if(!input || !value) return;
+      input.value = value;
       input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
+      select.value = '';
     }));
     document.getElementById('addCertBtn')?.addEventListener('click',()=>{
       const rows=document.getElementById('certRows'); if(!rows) return;
@@ -4480,56 +4511,7 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     filterJobs();
   }
 
-  // ---------------- Common Page Init ----------------
-  function initCommon(){
-    if(document.body.dataset.role !== 'student' || !document.getElementById('sidebar')) return;   // student dashboard pages only
-    const me = session();
-    if(!me || me.role !== 'student'){ go('login'); return; }
-    const user=refreshStatusFromUser();
-    if(!user){ go('login'); return; }
-    if(user){
-      // A student the coordinator has not approved yet cannot enter the portal
-      if(user.status === 'pending'){
-        localStorage.removeItem('ic_session');
-        sessionStorage.setItem('pendingToast', JSON.stringify({message:'Your request to join the class is still waiting for coordinator approval.', type:'warn'}));
-        go('login');
-        return;
-      }
-      applyStudentTheme();
-      personalize(user);
-      if(enforceAlumniPageAccess(user)) return;
-      updateActiveNav(user);
-      syncToggle(user);
-    }
-
-    document.getElementById('toggleStudent')?.addEventListener('click',()=>{
-      const u=currentUserRecord(); if(!u)return;
-      if(isAlumni(u)) return toast('Your account is already in Alumni Status.','info');
-      if(isPending(u)) return toast('Your Alumni status request is still pending.','info');
-      toast('You are currently in Student mode.','info');
-    });
-    document.getElementById('toggleAlumni')?.addEventListener('click',requestAlumniStatus);
-    document.getElementById('alumniPendingBadge')?.addEventListener('click',()=>toast('Your Alumni status request is waiting for coordinator approval.','info'));
-    document.getElementById('cancelAlumniRequestBtn')?.addEventListener('click',closeAlumniModal);
-    document.getElementById('sendAlumniRequestBtn')?.addEventListener('click',sendAlumniRequest);
-    document.getElementById('logoutBtn')?.addEventListener('click',async ()=>{if(!await askConfirm('Log out of InternConnect?'))return;localStorage.removeItem('ic_session');sessionStorage.setItem('pendingToast',JSON.stringify({message:'You have been logged out.',type:'info'}));window.location.href=studentPageMap.login;});
-
-    // Common mobile sidebar
-    const sidebar=document.getElementById('sidebar'),overlay=document.getElementById('overlay'),mobile=document.getElementById('mobileToggle'),close=document.getElementById('mobileCloseBtn');
-    const open=()=>{sidebar?.classList.remove('-translate-x-full');overlay?.classList.remove('hidden');mobile?.classList.add('hidden');};
-    const shut=()=>{sidebar?.classList.add('-translate-x-full');overlay?.classList.add('hidden');mobile?.classList.remove('hidden');};
-    mobile?.addEventListener('click',open);close?.addEventListener('click',shut);overlay?.addEventListener('click',shut);
-
-    document.getElementById('notifBtn')?.addEventListener('click',e=>{e.stopPropagation();document.getElementById('notifDropdown')?.classList.toggle('hidden');});
-    document.addEventListener('click',e=>{const d=document.getElementById('notifDropdown');if(d && !d.contains(e.target) && e.target.id!=='notifBtn')d.classList.add('hidden');});
-
-    // Shared placement records below render attendance and day details for this student.
-    if(currentPage()==='resume') initResume();
-    if(currentPage()==='classwork') initClasswork();
-    if(currentPage()==='taskdetail') initTaskDetail();
-    if(currentPage()==='jobs') initJobs();
-
-    // Attendance controls exist only on the attendance page.
+  function initAttendanceControls(){
     document.getElementById('timeInBtn')?.addEventListener('click',beginTimeIn);
     document.getElementById('cancelAttendancePermissionBtn')?.addEventListener('click',()=>hide('attendancePermissionModal'));
     document.getElementById('allowAttendancePermissionBtn')?.addEventListener('click',allowAttendance);
@@ -4541,7 +4523,79 @@ if(document.getElementById('wr-students') || document.body.dataset.page === 'req
     document.getElementById('backToAttendanceBtn')?.addEventListener('click',()=>go('attendance'));
   }
 
-  document.addEventListener('DOMContentLoaded',()=>{ initCommon(); });
+  function registerStudentModules(){
+    window.ICCore = window.ICCore || {};
+    window.ICCore.resume = window.ICCore.resume || {};
+    window.ICCore.resume.init = initResume;
+    window.ICCore.student = window.ICCore.student || {};
+    window.ICCore.student.initClasswork = initClasswork;
+    window.ICCore.student.initTaskDetail = initTaskDetail;
+    window.ICCore.student.initJobs = initJobs;
+    window.ICCore.student.initAccountControls = initStudentAccountControls;
+    window.ICCore.student.initSidebar = initStudentSidebar;
+    window.ICCore.student.initNotifications = initStudentNotifications;
+    window.ICCore.student.initAttendanceControls = initAttendanceControls;
+  }
+
+  function initStudentAccountControls(){
+    document.getElementById('toggleStudent')?.addEventListener('click',()=>{
+      const u=currentUserRecord(); if(!u)return;
+      if(isAlumni(u)) return toast('Your account is already in Alumni Status.','info');
+      if(isPending(u)) return toast('Your Alumni status request is still pending.','info');
+      toast('You are currently in Student mode.','info');
+    });
+    document.getElementById('toggleAlumni')?.addEventListener('click',requestAlumniStatus);
+    document.getElementById('alumniPendingBadge')?.addEventListener('click',()=>toast('Your Alumni status request is waiting for coordinator approval.','info'));
+    document.getElementById('cancelAlumniRequestBtn')?.addEventListener('click',closeAlumniModal);
+    document.getElementById('sendAlumniRequestBtn')?.addEventListener('click',sendAlumniRequest);
+    document.getElementById('logoutBtn')?.addEventListener('click',async ()=>{if(!await askConfirm('Log out of InternConnect?'))return;localStorage.removeItem('ic_session');sessionStorage.setItem('pendingToast',JSON.stringify({message:'You have been logged out.',type:'info'}));window.location.href=studentPageMap.login;});
+  }
+
+  function authorizeStudentSession(){
+    const me = session();
+    if(!me || me.role !== 'student'){ go('login'); return null; }
+    const user = refreshStatusFromUser();
+    if(!user){ go('login'); return null; }
+    if(user.status === 'pending'){
+      localStorage.removeItem('ic_session');
+      sessionStorage.setItem('pendingToast', JSON.stringify({message:'Your request to join the class is still waiting for coordinator approval.', type:'warn'}));
+      go('login');
+      return null;
+    }
+    return user;
+  }
+
+  function hydrateStudentShell(user){
+    applyStudentTheme();
+    personalize(user);
+    if(enforceAlumniPageAccess(user)) return false;
+    updateActiveNav(user);
+    syncToggle(user);
+    return true;
+  }
+
+  function initStudentSidebar(){
+    const sidebar=document.getElementById('sidebar'),overlay=document.getElementById('overlay'),mobile=document.getElementById('mobileToggle'),close=document.getElementById('mobileCloseBtn');
+    const open=()=>{sidebar?.classList.remove('-translate-x-full');overlay?.classList.remove('hidden');mobile?.classList.add('hidden');};
+    const shut=()=>{sidebar?.classList.add('-translate-x-full');overlay?.classList.add('hidden');mobile?.classList.remove('hidden');};
+    mobile?.addEventListener('click',open);close?.addEventListener('click',shut);overlay?.addEventListener('click',shut);
+  }
+
+  function initStudentNotifications(){
+    document.getElementById('notifBtn')?.addEventListener('click',e=>{e.stopPropagation();document.getElementById('notifDropdown')?.classList.toggle('hidden');});
+    document.addEventListener('click',e=>{const d=document.getElementById('notifDropdown');if(d && !d.contains(e.target) && e.target.id!=='notifBtn')d.classList.add('hidden');});
+  }
+
+  window.ICCore = window.ICCore || {};
+  window.ICCore.student = window.ICCore.student || {};
+  window.ICCore.student.authorize = authorizeStudentSession;
+  window.ICCore.student.hydrate = hydrateStudentShell;
+  window.ICCore.student.registerModules = registerStudentModules;
+  window.ICCore.student.session = session;
+  window.ICCore.student.navigate = go;
+  window.ICCore.student.currentUser = currentUserRecord;
+  window.ICCore.student.ui = { show, hide, toast };
+  window.ICCore.student.profile = { applyStudentTheme, personalize, updateActiveNav, syncToggle, enforceAlumniPageAccess, refreshStatusFromUser };
   window.addEventListener('beforeunload',stopAttendanceCamera);
 })();
 
@@ -4975,7 +5029,7 @@ function renderCoordinatorSubmissionNotifications(){
         (Array.isArray(submissions) ? submissions : []).map(sub => ({taskId, sub}))
     ).sort((a, b) => String(b.sub.date || '').localeCompare(String(a.sub.date || ''))).slice(0, 8);
     if(!items.length){
-        drop.innerHTML = '<div class="px-4 py-5 text-center text-[12px] text-slate-400">No student task submissions yet.</div>';
+        drop.innerHTML = '<div class="px-4 py-5 text-center text-[12px] text-slate-400">No new activity yet.</div>';
         button.querySelector('.notification-dot')?.classList.add('hidden');
         return;
     }
@@ -4989,7 +5043,9 @@ function renderCoordinatorSubmissionNotifications(){
     }).join('');
     button.querySelector('.notification-dot')?.classList.remove('hidden');
 }
-renderCoordinatorSubmissionNotifications();
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.renderSubmissionNotifications = renderCoordinatorSubmissionNotifications;
 
 /* ============ Partner directory: office location and geofence ============ */
 function renderSiteLines(){
@@ -5173,12 +5229,11 @@ function exportDirectoryPdf(){
     const rgb = (n, fb) => { const h = css.getPropertyValue(n).trim().replace('#', ''); return /^[0-9a-f]{6}$/i.test(h) ? [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)) : fb; };
     const dark = rgb('--bd', [15, 23, 42]), accent = rgb('--b600', [2, 132, 199]);
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 40;
-    doc.setFillColor(...dark); doc.rect(0, 0, W, 76, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text('Partner Company & MOA Directory', M, 36);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text(det['Batch (class code)'] + '  -  ' + det['Partner companies'] + ' partners  -  ' + det['MOA active'] + ' active, ' + det['MOA expiring within 90 days'] + ' expiring, ' + det['MOA expired'] + ' expired', M, 56);
-    doc.text('Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : ''), W - M, 56, {align: 'right'});
-    doc.autoTable({startY: 96, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
+    const contentY = drawExportHeader(doc, 'Partner Company & MOA Directory', [
+        det['Batch (class code)'] + '  -  ' + det['Partner companies'] + ' partners  -  ' + det['MOA active'] + ' active, ' + det['MOA expiring within 90 days'] + ' expiring, ' + det['MOA expired'] + ' expired',
+        'Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : '')
+    ], M);
+    doc.autoTable({startY: contentY, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
         head: [['Company', 'HR contact', 'MOA valid until', 'MOA status', 'Scan in vault', 'Deployed', 'In process']],
         body: d.rows.length ? d.rows.map(r => [r[0] + (r[1] ? '\n' + r[1] : ''), r[2] || '-', r[3] || '-', r[4], r[6], r[7], r[8]]) : [['No partner companies in this batch yet.', '', '', '', '', '', '']],
         styles: {fontSize: 9.5, cellPadding: 5, textColor: [30, 41, 59]}, headStyles: {fillColor: accent, textColor: 255, fontStyle: 'bold'}, alternateRowStyles: {fillColor: [248, 250, 252]},
@@ -5190,7 +5245,8 @@ function exportDirectoryPdf(){
     doc.save(directoryFile('pdf'));
     return true;
 }
-if(document.getElementById('exportDirBtn')){
+function initCoordinatorDirectoryExport(){
+    if(!document.getElementById('exportDirBtn')) return;
     const btn = document.getElementById('exportDirBtn'), menu = document.getElementById('exportDirMenu');
     const setMenu = (open) => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
     btn.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.classList.contains('hidden')); });
@@ -5207,6 +5263,9 @@ if(document.getElementById('exportDirBtn')){
         showToast('Partner & MOA directory downloaded as ' + label + '.', 'success');
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initDirectoryExport = initCoordinatorDirectoryExport;
 
 
 /* ============ Partner Company portal (optional: the coordinator can still do all of this) ============ */

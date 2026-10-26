@@ -166,6 +166,9 @@ html[data-theme="rose"]{--navA:rgba(244,63,94,0.18);}
 .chip-note{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:rgba(146,64,14,0.1);padding:1px 6px;border-radius:100px;}
 .example-chip{display:inline-flex;align-items:center;font-size:11px;font-weight:500;line-height:1.2;color:#475569;background:#F1F5F9;border:1px solid #E2E8F0;padding:3px 10px;border-radius:100px;cursor:pointer;transition:.12s;}
 .example-chip:hover{background:var(--b50);border-color:var(--b200);color:var(--b700);}
+.skill-picker{font-size:11px;line-height:1.2;color:#475569;background:#fff;border:1px solid #CBD5E1;border-radius:8px;padding:5px 26px 5px 9px;cursor:pointer;transition:box-shadow .15s,border-color .15s,background .15s;}
+.skill-picker:hover{background:#F8FAFC;border-color:var(--b200);}
+.skill-picker:focus{outline:none;border-color:var(--b400);box-shadow:0 0 0 3px rgba(56,189,248,.16);}
 /* Attendance calendar */
 .cal-day{height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;font-size:12.5px;color:#475569;position:relative;transition:.12s;}
 .cal-day.weekend{color:#CBD5E1;}
@@ -208,6 +211,7 @@ html[data-theme="rose"]{--navA:rgba(244,63,94,0.18);}
   #pv-verified > div{flex-wrap:wrap;}
   #tab-resume .resume-subtab-btn{white-space:normal;min-height:44px;}
   #tab-resume input:not([type="checkbox"]):not([type="file"]),#tab-resume textarea,#tab-resume select{font-size:16px;}
+  #tab-resume select.skill-picker{font-size:11px !important;}
   #exportResumePdfBtn,#createResumeManuallyBtn,#saveSkillsBtn{width:100%;min-height:44px;}
 }
 

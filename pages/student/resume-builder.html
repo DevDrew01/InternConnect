@@ -234,7 +234,9 @@
                     <input class="flex-1 min-w-[220px] text-[12.5px] outline-none px-1 py-1" id="softTagInput" placeholder="Type a skill, press Enter" type="text"/>
                   </div>
                   <p class="text-[10.5px] text-slate-400 mt-1">Optional. Add as many relevant soft skills as needed.</p>
-                  <div class="flex flex-wrap items-center gap-1.5 mt-2"><span class="text-[10.5px] text-slate-400">Examples:</span><button type="button" class="example-chip" data-example-for="softTagInput">Communication</button><button type="button" class="example-chip" data-example-for="softTagInput">Teamwork</button><button type="button" class="example-chip" data-example-for="softTagInput">Time Management</button><button type="button" class="example-chip" data-example-for="softTagInput">Adaptability</button></div>
+                  <div class="flex items-center gap-2 mt-2"><span class="text-[10.5px] text-slate-400">Quick add</span><select class="skill-picker w-auto max-w-[190px]" data-example-for="softTagInput" aria-label="Choose a soft skill">
+                    <option value="">Choose a soft skill…</option><option>Communication</option><option>Teamwork</option><option>Time Management</option><option>Adaptability</option><option>Problem Solving</option><option>Leadership</option><option>Creativity</option><option>Critical Thinking</option><option>Attention to Detail</option><option>Organization</option><option>Work Ethic</option><option>Customer Service</option>
+                  </select></div>
                 </div>
                 <div>
                   <label class="text-[13px] font-semibold text-slate-700 block mb-1">Hard Skills</label>
@@ -245,7 +247,9 @@
                     <input class="flex-1 min-w-[220px] text-[12.5px] outline-none px-1 py-1" id="techTagInput" placeholder="Type a skill, press Enter" type="text"/>
                   </div>
                   <p class="text-[10.5px] text-slate-400 mt-1">Min 1 required, Max 15 tags. Any field counts, not just technical.</p>
-                  <div class="flex flex-wrap items-center gap-1.5 mt-2"><span class="text-[10.5px] text-slate-400">Examples:</span><button type="button" class="example-chip" data-example-for="techTagInput">Python</button><button type="button" class="example-chip" data-example-for="techTagInput">SQL</button><button type="button" class="example-chip" data-example-for="techTagInput">Canva</button><button type="button" class="example-chip" data-example-for="techTagInput">Customer Service</button><button type="button" class="example-chip" data-example-for="techTagInput">Data Entry</button></div>
+                  <div class="flex items-center gap-2 mt-2"><span class="text-[10.5px] text-slate-400">Quick add</span><select class="skill-picker w-auto max-w-[190px]" data-example-for="techTagInput" aria-label="Choose a technical skill">
+                    <option value="">Choose a technical skill…</option><option>HTML</option><option>CSS</option><option>JavaScript</option><option>Python</option><option>Java</option><option>SQL</option><option>Git</option><option>Figma</option><option>Canva</option><option>Microsoft Office</option><option>Data Entry</option><option>Customer Service</option><option>Google Workspace</option><option>Excel</option><option>WordPress</option>
+                  </select></div>
                 </div>
                 <div class="border border-slate-200 rounded-lg p-4">
                   <div class="flex items-center justify-between mb-3">
@@ -337,6 +341,12 @@
 
     <div id="toastContainer"></div>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-    <script src="../../assets/js/script.js"></script>
+<script src="../../assets/js/script.js"></script>
+    <script src="../../assets/js/export-logo-transparent.js"></script><script src="../../assets/js/export-logo-layout.js"></script><script src="../../assets/js/core/export-layout.js"></script>
+<script src="../../assets/js/student/common.js"></script>
+<script src="../../assets/js/student/session.js"></script>
+<script src="../../assets/js/student/ui.js"></script>
+<script src="../../assets/js/student/profile.js"></script>
+<script src="../../assets/js/student/resume.js"></script>
   </body>
 </html>
