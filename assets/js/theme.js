@@ -13,3 +13,10 @@ function applyTheme(theme){
 // Logged-in user's theme (set at login / sign up, cleared at logout)
 const icSession = getJSON('ic_session', null);
 applyTheme(icSession && icSession.theme);
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.export-btn').forEach(btn => btn.addEventListener('click', () => {
+        const label = btn.textContent.trim();
+        if (typeof window.showToast === 'function') window.showToast('Preparing "' + label + '" your download will start shortly.', 'info');
+    }));
+}, {once: true});

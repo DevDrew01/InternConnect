@@ -219,7 +219,8 @@ function closeSidebar(){
     mobileToggle.classList.remove('hidden');
 }
 
-if(sidebar && !isStudentPortal){
+function initCoordinatorSidebar(){
+    if(!(sidebar && !isStudentPortal)) return;
     // Nav Links (go to the matching page, logout goes back to login)
     document.querySelectorAll('.nav-link').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -263,15 +264,9 @@ if(sidebar && !isStudentPortal){
     if(notifBtn && !isStudentPortal) notifBtn.querySelector('.notification-dot')?.classList.add('hidden');
     document.addEventListener('click', (e) => { if(notifDropdown && !notifDropdown.contains(e.target)) notifDropdown.classList.add('hidden'); });
 }
-
-// Export Buttons
-document.querySelectorAll('.export-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const label = btn.textContent.trim();
-        showToast('Preparing "' + label + '" your download will start shortly.', 'info');
-    });
-});
-
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initSidebar = initCoordinatorSidebar;
 
 /* ============ Accounts and Themes (prototype "database" in localStorage) ============ */
 
@@ -938,12 +933,15 @@ function updateSidebarRequestBadge(){
     badge.classList.toggle('hidden', !count || viewedRequests);
     badge.setAttribute('aria-label', count + ' pending requests');
 }
-updateSidebarRequestBadge();
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.updateRequestBadge = updateSidebarRequestBadge;
 function initCoordinatorJoinRequests(){
     if(document.getElementById('wr-students')) renderJoinRequests();
 }
 window.ICCore = window.ICCore || {};
 window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.shared = { goTo, openModal, closeModal, askConfirm, showToast, activeClassCode, activeClass, refreshHeaderCode, logAudit };
 window.ICCore.coordinator.initJoinRequests = initCoordinatorJoinRequests;
 window.ICCore.coordinator.initRequests = initCoordinatorJoinRequests;
 
@@ -1463,15 +1461,6 @@ function currentReport(){
 }
 const reportName = (r, ext) => 'Accomplishment_Report_' + fileSlug(r.sub.name) + '_' + fileSlug(r.t.title) + '.' + ext;
 const cleanText = (text) => String(text || '').replace(/\t/g, '    ');
-function saveFile(filename, blob){
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
 on('td-genPdfBtn', 'click', () => {
     const lib = window.jspdf && window.jspdf.jsPDF;
     if(!lib){ showToast('The PDF library could not load (are you offline?). Try the Word option instead.', 'warn'); return; }
@@ -1480,12 +1469,7 @@ on('td-genPdfBtn', 'click', () => {
     const rgb = (name, fallback) => { const h = css.getPropertyValue(name).trim().replace('#', ''); return /^[0-9a-f]{6}$/i.test(h) ? [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)) : fallback; };
     const dark = rgb('--bd', [15, 23, 42]), accent = rgb('--b600', [2, 132, 199]);
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 48, width = W - M * 2;
-    doc.setFillColor(...dark); doc.rect(0, 0, W, 78, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
-    doc.text(doc.splitTextToSize(r.t.title, width)[0], M, 36);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text('Accomplishment report  |  ' + r.sub.name, M, 56);
-    let y = 108;
+    let y = drawExportHeader(doc, r.t.title, ['Accomplishment report  |  ' + r.sub.name], M);
     const line = (text, size, bold, color, gap) => {
         doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(size); doc.setTextColor(...color);
         doc.splitTextToSize(cleanText(text), width).forEach(l => {
@@ -1521,6 +1505,7 @@ on('td-genWordBtn', 'click', () => {
     const fb = r.sub.feedback || (r.grade && r.grade.feedback);
     const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>' + esc(r.t.title) + '</title></head>'
         + '<body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1e293b">'
+        + '<table style="width:100%;margin-bottom:12pt"><tr><td style="width:50%;text-align:left"><img src="../../assets/img/phinma-sjcdc-logo-left.png" alt="St. Jude College" style="width:180px;height:auto"></td><td style="width:50%;text-align:right"><img src="../../assets/img/phinma-sjcdc-logo-right.png" alt="PHINMA Education" style="width:180px;height:auto"></td></tr></table>'
         + '<h1 style="font-size:18pt;margin-bottom:2pt">' + esc(r.t.title) + '</h1>'
         + '<p style="color:#64748b;margin-top:0">Accomplishment report &middot; ' + esc(r.sub.name) + '<br>' + esc(r.sub.meta || '') + '<br><b>Status:</b> ' + esc(r.sub.status) + (r.sub.late ? ' (late)' : '') + '</p>'
         + '<h3 style="color:#0369a1;font-size:10pt">ACCOMPLISHMENT REPORT</h3><p>' + para(r.sub.raw) + '</p>'
@@ -2295,12 +2280,11 @@ function exportAttendancePdf(){
     const rgb = (n, fb) => { const h = css.getPropertyValue(n).trim().replace('#', ''); return /^[0-9a-f]{6}$/i.test(h) ? [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)) : fb; };
     const dark = rgb('--bd', [15, 23, 42]), accent = rgb('--b600', [2, 132, 199]);
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 40;
-    doc.setFillColor(...dark); doc.rect(0, 0, W, 76, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text('Attendance & Progress', M, 36);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text(det['Batch (class code)'] + '  -  ' + det['Interns listed'] + ' interns  -  ' + det['On track'] + ' on track, ' + det['At-risk'] + ' at-risk', M, 56);
-    doc.text('Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : ''), W - M, 56, {align: 'right'});
-    doc.autoTable({startY: 96, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
+    const contentY = drawExportHeader(doc, 'Attendance & Progress', [
+        det['Batch (class code)'] + '  -  ' + det['Interns listed'] + ' interns  -  ' + det['On track'] + ' on track, ' + det['At-risk'] + ' at-risk',
+        'Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : '')
+    ], M);
+    doc.autoTable({startY: contentY, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
         head: [['Student', 'Company', 'Setup', 'Hours', 'Progress', 'Expected', 'Risk level', 'Flagged']],
         body: d.rows.length ? d.rows.map(r => [r[0] + (r[1] ? '\n' + r[1] : ''), r[2], r[3], r[4] + ' / ' + r[5], r[6] + '%', r[7] === '' ? '-' : r[7] + ' h', r[8], r[9] || '']) : [['No interns match.', '', '', '', '', '', '', '']],
         styles: {fontSize: 9.5, cellPadding: 5, textColor: [30, 41, 59]}, headStyles: {fillColor: accent, textColor: 255, fontStyle: 'bold'}, alternateRowStyles: {fillColor: [248, 250, 252]},
@@ -3343,12 +3327,11 @@ function exportAuditPdf(){
     const rgb = (n, fb) => { const h = css.getPropertyValue(n).trim().replace('#', ''); return /^[0-9a-f]{6}$/i.test(h) ? [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)) : fb; };
     const dark = rgb('--bd', [15, 23, 42]), accent = rgb('--b600', [2, 132, 199]);
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 40;
-    doc.setFillColor(...dark); doc.rect(0, 0, W, 76, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text('Audit Trail & Security Log', M, 36);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text(safe(det['Batch (class code)']) + '  -  ' + det['Entries'] + ' entries  -  RA 10173 activity log', M, 56);
-    doc.text('Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + safe(det['Generated by']) : ''), W - M, 56, {align: 'right'});
-    doc.autoTable({startY: 96, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
+    const contentY = drawExportHeader(doc, 'Audit Trail & Security Log', [
+        safe(det['Batch (class code)']) + '  -  ' + det['Entries'] + ' entries  -  RA 10173 activity log',
+        'Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + safe(det['Generated by']) : '')
+    ], M);
+    doc.autoTable({startY: contentY, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
         head: [d.head],
         body: d.rows.length ? d.rows.map(r => r.map(safe)) : [['No activity logged yet.', '', '', '']],
         styles: {fontSize: 8.5, cellPadding: 4, textColor: [30, 41, 59]}, headStyles: {fillColor: accent, textColor: 255, fontStyle: 'bold'}, alternateRowStyles: {fillColor: [248, 250, 252]},
@@ -3499,17 +3482,10 @@ function exportOverviewPdf(){
     const accent = rgb('--b600', [2, 132, 199]), dark = rgb('--bd', [15, 23, 42]);
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 40;
 
-    // Header band
-    doc.setFillColor(...dark);
-    doc.rect(0, 0, W, 82, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(19);
-    doc.text('Overview Dashboard Summary', M, 38);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text([det['Batch (class code)'], det['Program'], det['Term']].filter(Boolean).join('  -  '), M, 58);
-    doc.text('Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : ''), M, 72);
-
-    let y = 108;
+    let y = drawExportHeader(doc, 'Overview Dashboard Summary', [
+        [det['Batch (class code)'], det['Program'], det['Term']].filter(Boolean).join('  -  '),
+        'Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : '')
+    ], M);
     const section = (title, needed) => {
         if(y > H - (needed || 110)){ doc.addPage(); y = M; }
         doc.setTextColor(...dark); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
@@ -4163,7 +4139,9 @@ window.ICCore.coordinator.initAlumniRequests = initCoordinatorAlumniRequests;
     if(!Pdf) return toast('The PDF library could not load. Please check your connection and try again.', 'warn');
     const doc = new Pdf({unit:'pt', format:'a4'}), width = doc.internal.pageSize.getWidth(), height = doc.internal.pageSize.getHeight();
     const margin = 48, lineWidth = width - margin * 2;
-    let y = 54;
+    addExportLogo(doc);
+    doc.setTextColor(15, 23, 42);
+    let y = 108;
     const line = (value, size, bold, gap) => {
       doc.setFont('helvetica', bold ? 'bold' : 'normal');
       doc.setFontSize(size);
@@ -5051,7 +5029,7 @@ function renderCoordinatorSubmissionNotifications(){
         (Array.isArray(submissions) ? submissions : []).map(sub => ({taskId, sub}))
     ).sort((a, b) => String(b.sub.date || '').localeCompare(String(a.sub.date || ''))).slice(0, 8);
     if(!items.length){
-        drop.innerHTML = '<div class="px-4 py-5 text-center text-[12px] text-slate-400">No student task submissions yet.</div>';
+        drop.innerHTML = '<div class="px-4 py-5 text-center text-[12px] text-slate-400">No new activity yet.</div>';
         button.querySelector('.notification-dot')?.classList.add('hidden');
         return;
     }
@@ -5065,7 +5043,9 @@ function renderCoordinatorSubmissionNotifications(){
     }).join('');
     button.querySelector('.notification-dot')?.classList.remove('hidden');
 }
-renderCoordinatorSubmissionNotifications();
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.renderSubmissionNotifications = renderCoordinatorSubmissionNotifications;
 
 /* ============ Partner directory: office location and geofence ============ */
 function renderSiteLines(){
@@ -5249,12 +5229,11 @@ function exportDirectoryPdf(){
     const rgb = (n, fb) => { const h = css.getPropertyValue(n).trim().replace('#', ''); return /^[0-9a-f]{6}$/i.test(h) ? [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)) : fb; };
     const dark = rgb('--bd', [15, 23, 42]), accent = rgb('--b600', [2, 132, 199]);
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 40;
-    doc.setFillColor(...dark); doc.rect(0, 0, W, 76, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text('Partner Company & MOA Directory', M, 36);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text(det['Batch (class code)'] + '  -  ' + det['Partner companies'] + ' partners  -  ' + det['MOA active'] + ' active, ' + det['MOA expiring within 90 days'] + ' expiring, ' + det['MOA expired'] + ' expired', M, 56);
-    doc.text('Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : ''), W - M, 56, {align: 'right'});
-    doc.autoTable({startY: 96, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
+    const contentY = drawExportHeader(doc, 'Partner Company & MOA Directory', [
+        det['Batch (class code)'] + '  -  ' + det['Partner companies'] + ' partners  -  ' + det['MOA active'] + ' active, ' + det['MOA expiring within 90 days'] + ' expiring, ' + det['MOA expired'] + ' expired',
+        'Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + det['Generated by'] : '')
+    ], M);
+    doc.autoTable({startY: contentY, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
         head: [['Company', 'HR contact', 'MOA valid until', 'MOA status', 'Scan in vault', 'Deployed', 'In process']],
         body: d.rows.length ? d.rows.map(r => [r[0] + (r[1] ? '\n' + r[1] : ''), r[2] || '-', r[3] || '-', r[4], r[6], r[7], r[8]]) : [['No partner companies in this batch yet.', '', '', '', '', '', '']],
         styles: {fontSize: 9.5, cellPadding: 5, textColor: [30, 41, 59]}, headStyles: {fillColor: accent, textColor: 255, fontStyle: 'bold'}, alternateRowStyles: {fillColor: [248, 250, 252]},
