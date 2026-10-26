@@ -939,7 +939,13 @@ function updateSidebarRequestBadge(){
     badge.setAttribute('aria-label', count + ' pending requests');
 }
 updateSidebarRequestBadge();
-if(document.getElementById('wr-students')) renderJoinRequests();
+function initCoordinatorJoinRequests(){
+    if(document.getElementById('wr-students')) renderJoinRequests();
+}
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initJoinRequests = initCoordinatorJoinRequests;
+window.ICCore.coordinator.initRequests = initCoordinatorJoinRequests;
 
 // Approve and Reject (approved students become Interns, rejected sign ups are deleted). Both are written to the audit trail.
 document.addEventListener('click', async (e) => {
@@ -1170,7 +1176,8 @@ async function taskAction(id, act){
     renderTasks();
 }
 
-if(document.getElementById('taskList')){
+function initCoordinatorTaskList(){
+    if(!document.getElementById('taskList')) return;
     document.getElementById('taskList').addEventListener('click', (e) => {
         const card = e.target.closest('.task-card');
         if(!card) return;
@@ -1196,12 +1203,13 @@ if(document.getElementById('taskList')){
     });
     document.addEventListener('click', closeTaskMenus);
     document.querySelectorAll('.task-filter').forEach(b => b.addEventListener('click', () => { taskFilter = b.dataset.filter; renderTasks(); }));
-    document.addEventListener('DOMContentLoaded', () => {
-        renderTasks();
-        const editId = new URLSearchParams(window.location.search).get('edit');
-        if(editId && findTask(editId)) openTaskModal(findTask(editId));
-    });
+    renderTasks();
+    const editId = new URLSearchParams(window.location.search).get('edit');
+    if(editId && findTask(editId)) openTaskModal(findTask(editId));
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initTaskList = initCoordinatorTaskList;
 
 
 // Batch Selector (switches the current batch)
@@ -1212,7 +1220,8 @@ function updateBatchBadge(){
     badge.textContent = capitalize(cls.status);
     badge.className = 'text-[10.5px] font-semibold border px-2 py-0.5 rounded-full ' + STATUS_BADGE[cls.status];
 }
-if(document.getElementById('batchSelect')){
+function initCoordinatorBatchSelector(){
+    if(!document.getElementById('batchSelect')) return;
     const sel = document.getElementById('batchSelect');
     const active = activeClassCode();
     sel.innerHTML = myClasses().filter(c => c.status !== 'archived').map(c =>
@@ -1226,6 +1235,7 @@ if(document.getElementById('batchSelect')){
         showToast('Switched to ' + sel.options[sel.selectedIndex].text + '.', 'info');
     });
 }
+window.ICCore.coordinator.initBatchSelector = initCoordinatorBatchSelector;
 
 
 /* ============ Task Detail ============ */
@@ -1388,14 +1398,16 @@ function showTaskMissing(){
     ['taskDetailDue', 'taskDetailAttachment', 'taskDetailAttachList', 'taskDetailCount', 'taskDetailStatus', 'td-editTaskBtn', 'taskSplit', 'taskNoSubs']
         .forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
 }
-if(document.getElementById('taskSubmissionsList')){
-    document.addEventListener('DOMContentLoaded', () => {   // after the whole script is loaded (live counts read the roster)
-        const id = new URLSearchParams(window.location.search).get('task');
-        const t = id && findTask(id);
-        if(t && t.classCode === activeClassCode()) renderTaskDetail(id);
-        else showTaskMissing();
-    });
+function initCoordinatorTaskDetail(){
+    if(!document.getElementById('taskSubmissionsList')) return;
+    const id = new URLSearchParams(window.location.search).get('task');
+    const t = id && findTask(id);
+    if(t && t.classCode === activeClassCode()) renderTaskDetail(id);
+    else showTaskMissing();
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initTaskDetail = initCoordinatorTaskDetail;
 
 on('backToClassworkBtn', 'click', () => goTo('classwork'));
 on('td-editTaskBtn', 'click', () => { window.location.href = pages.classwork + '?edit=' + encodeURIComponent(currentTaskId); });
@@ -1561,8 +1573,9 @@ function renderClasses(){
     }).join('');
 }
 
-if(document.getElementById('classList')){
-    document.addEventListener('DOMContentLoaded', renderClasses);
+function initCoordinatorClasses(){
+  if(!document.getElementById('classList')) return;
+    renderClasses();
     on('showArchived', 'change', renderClasses);
 
     document.getElementById('classList').addEventListener('click', async (e) => {
@@ -1624,6 +1637,9 @@ if(document.getElementById('classList')){
         showToast('Batch created. Class code: ' + code, 'success');
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initClasses = initCoordinatorClasses;
 
 
 /* ============ Vault data (pages below use it) ============ */
@@ -1782,7 +1798,7 @@ function logAudit(action, status, system){
     const key = auditStorageKey(sess), all = getJSON(key, []);
     all.push({at: isoDate(d) + ' ' + d.toTimeString().slice(0, 8), action, status: status || 'Success',
         user: system ? 'system-auto' : (sess.role === 'partnercompany' ? 'partner-' : 'coord-') + (sess.name || 'coordinator').split(/\s+/).map(w => w[0]).join('').toLowerCase() + '-001',
-        ip: system ? 'internal' : '203.177.**.**'});
+        source: system ? 'system' : 'client'});
     if(window.ICCore?.storage) window.ICCore.storage.setJSON(key, all.slice(-500));
     else localStorage.setItem(key, JSON.stringify(all.slice(-500)));
 }
@@ -2097,7 +2113,8 @@ function renderRoster(){
     }));
 }
 
-if(document.getElementById('rosterInternsBody')){
+function initCoordinatorRoster(){
+  if(!document.getElementById('rosterInternsBody')) return;
     loadRoster();
     renderRoster();
     on('backToClassesBtn', 'click', () => goTo('classes'));
@@ -2145,6 +2162,9 @@ if(document.getElementById('rosterInternsBody')){
         showToast('Batch closed. ' + ready.length + ' moved to Alumni, ' + ongoing + ' still ongoing.', 'success');
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initRoster = initCoordinatorRoster;
 
 
 /* ============ Attendance and Progress ============ */
@@ -2228,12 +2248,16 @@ function filterAttendance(){
 on('studentSearch', 'input', filterAttendance);
 on('companyFilter', 'change', filterAttendance);
 on('statusFilter', 'change', filterAttendance);
-if(document.getElementById('attendanceTbody')){
+function initCoordinatorAttendanceTable(){
+if(!document.getElementById('attendanceTbody')) return;
     document.getElementById('companyFilter').insertAdjacentHTML('beforeend', partnerNames().map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join(''));
     const chip = document.getElementById('attProgram');
     if(chip) chip.textContent = 'Program: ' + (programShort((getJSON('ic_session', null) || {}).program || '') || 'All');
     renderAttendance();
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initAttendanceTable = initCoordinatorAttendanceTable;
 
 /* ---------- Export the roster on screen (Excel or PDF) ---------- */
 function attendanceExportData(){
@@ -2288,7 +2312,8 @@ function exportAttendancePdf(){
     doc.save(attendanceFile('pdf'));
     return true;
 }
-if(document.getElementById('exportAttBtn')){
+function initCoordinatorAttendanceExport(){
+    if(!document.getElementById('exportAttBtn')) return;
     const btn = document.getElementById('exportAttBtn'), menu = document.getElementById('exportAttMenu');
     const setMenu = (open) => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
     btn.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.classList.contains('hidden')); });
@@ -2305,6 +2330,9 @@ if(document.getElementById('exportAttBtn')){
         showToast('Attendance and progress downloaded as ' + label + '.', 'success');
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initAttendanceExport = initCoordinatorAttendanceExport;
 
 // Holidays and no-work days: pick a Philippine holiday or type one in (suspensions, company events)
 function holidayModal(){
@@ -2362,12 +2390,17 @@ function fillHolidayModal(){
         + PH_HOLIDAYS_2026.filter(h => !list.some(x => x.date === h[0])).map(h => '<option value="' + h[0] + '">' + formatDate(h[0]) + ' · ' + esc(h[1]) + ' (' + h[2] + ')</option>').join('');
     document.getElementById('holidaysCount').textContent = '(' + list.length + ')';
 }
-if(document.getElementById('holidaysBtn')){
+function initCoordinatorHolidays(){
+    if(!document.getElementById('holidaysBtn')) return;
     document.getElementById('holidaysCount').textContent = '(' + getHolidays().length + ')';
     on('holidaysBtn', 'click', holidayModal);
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initHolidays = initCoordinatorHolidays;
 
 // View Log opens the Intern profile, Files opens the intern's folder in their partner's vault
+function initCoordinatorAttendanceLinks(){
 document.getElementById('attendanceTbody')?.addEventListener('click', (e) => {
     const btn = e.target.closest('.attendance-files, .attendance-log');
     if(!btn) return;
@@ -2376,6 +2409,10 @@ document.getElementById('attendanceTbody')?.addEventListener('click', (e) => {
     if(btn.classList.contains('attendance-log')) window.location.href = profileLink(name) + '#attendance';
     else openInternFiles(row.dataset.company, name);
 });
+}
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initAttendanceLinks = initCoordinatorAttendanceLinks;
 
 
 /* ============ Partner and MOA Directory ============ */
@@ -2813,7 +2850,8 @@ async function placementAction(name, act){
     renderPlacements();
 }
 
-if(document.getElementById('placementTbody')){
+function initCoordinatorPlacements(){
+if(!document.getElementById('placementTbody')) return;
     renderPlacements();
     on('placementSearch', 'input', renderPlacements);
     document.getElementById('placementStages').addEventListener('click', (e) => {
@@ -2838,6 +2876,9 @@ if(document.getElementById('placementTbody')){
         showToast(esc(applyTarget) + "'s application to " + esc(company) + ' recorded. Upload the signed endorsement letter to their vault folder.', 'success');
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initPlacements = initCoordinatorPlacements;
 
 
 /* ============ Intern Profile ============ */
@@ -3050,7 +3091,8 @@ function renderProfile(name){
       + '<div class="space-y-4">' + requirements + timeline + jobsCard + '</div></div>';
 }
 
-if(document.getElementById('internProfile')){
+function initCoordinatorInternProfile(){
+if(!document.getElementById('internProfile')) return;
     const profileName = new URLSearchParams(window.location.search).get('name') || '';
     renderProfile(profileName);
     document.getElementById('internProfile').addEventListener('change', (e) => {
@@ -3106,6 +3148,9 @@ if(document.getElementById('internProfile')){
         renderProfile(profileName);
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initInternProfile = initCoordinatorInternProfile;
 
 
 /* ============ Alumni Deletion Requests ============ */
@@ -3215,7 +3260,8 @@ function renderDeletionRequests(){
         + (processed.length ? '<div class="pt-3 space-y-2.5"><div class="text-[11px] uppercase tracking-wide font-semibold text-slate-400">Processed</div>' + processed.map(deletionCard).join('') + '</div>' : '');
     updateRequestCounts();
 }
-if(document.getElementById('wr-deletions')){
+function initCoordinatorDeletions(){
+if(!document.getElementById('wr-deletions')) return;
     renderDeletionRequests();
     document.getElementById('wr-deletions').addEventListener('click', async (e) => {
         const btn = e.target.closest('[data-del-act]');
@@ -3242,6 +3288,9 @@ if(document.getElementById('wr-deletions')){
         renderDeletionRequests();
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initDeletions = initCoordinatorDeletions;
 
 
 /* ============ Audit Trail ============ */
@@ -3253,14 +3302,14 @@ function renderAudit(){
     const rows = auditRows();
     document.getElementById('auditTbody').innerHTML = rows.length ? rows.map(a => '<tr>'
         + '<td class="px-5 py-3 text-slate-500 font-mono text-[11.5px] whitespace-nowrap">' + esc(a.at) + '</td><td class="px-5 py-3 text-slate-600">' + esc(a.user) + '</td>'
-        + '<td class="px-5 py-3 text-slate-700">' + esc(a.action) + '</td><td class="px-5 py-3 text-slate-500 font-mono text-[11.5px]">' + esc(a.ip) + '</td>'
+        + '<td class="px-5 py-3 text-slate-700">' + esc(a.action) + '</td>'
         + '<td class="px-5 py-3"><span class="text-[11px] font-medium px-2 py-0.5 rounded-full ' + (AUDIT_BADGE[a.status] || AUDIT_BADGE.Success) + '">' + esc(a.status) + '</span></td></tr>').join('')
-        : '<tr><td colspan="5" class="px-5 py-8 text-center text-[12.5px] text-slate-400">No activity logged yet.</td></tr>';
+        : '<tr><td colspan="4" class="px-5 py-8 text-center text-[12.5px] text-slate-400">No activity logged yet.</td></tr>';
 }
 function auditExportData(){
     const list = auditRows(), me = getJSON('ic_session', null) || {};
-    const head = ['Timestamp', 'User ID', 'Action taken', 'IP address', 'Status'];
-    const rows = list.map(a => [a.at, a.user, a.action, a.ip, a.status]);
+    const head = ['Timestamp', 'User ID', 'Action taken', 'Status'];
+    const rows = list.map(a => [a.at, a.user, a.action, a.status]);
     const statuses = [...new Set(list.map(a => a.status))];
     const details = [['Report', 'Audit trail and security log'], ['Batch (class code)', activeClassCode()], ['Generated on', todayISO()], ['Generated by', me.name || me.email || ''], ['Entries', rows.length]]
         .concat(statuses.map(s => ['Status: ' + s, list.filter(a => a.status === s).length]));
@@ -3301,10 +3350,10 @@ function exportAuditPdf(){
     doc.text('Generated ' + det['Generated on'] + (det['Generated by'] ? ' by ' + safe(det['Generated by']) : ''), W - M, 56, {align: 'right'});
     doc.autoTable({startY: 96, margin: {left: M, right: M, bottom: 44}, theme: 'striped',
         head: [d.head],
-        body: d.rows.length ? d.rows.map(r => r.map(safe)) : [['No activity logged yet.', '', '', '', '']],
+        body: d.rows.length ? d.rows.map(r => r.map(safe)) : [['No activity logged yet.', '', '', '']],
         styles: {fontSize: 8.5, cellPadding: 4, textColor: [30, 41, 59]}, headStyles: {fillColor: accent, textColor: 255, fontStyle: 'bold'}, alternateRowStyles: {fillColor: [248, 250, 252]},
-        columnStyles: {0: {cellWidth: 90}, 1: {cellWidth: 90}, 3: {cellWidth: 80}, 4: {cellWidth: 62}},
-        didParseCell: (h) => { if(h.section === 'body' && h.column.index === 4){ const t = h.cell.raw; h.cell.styles.fontStyle = 'bold'; h.cell.styles.textColor = ['Success', 'Verified'].includes(t) ? [5, 150, 105] : ['Flagged', 'Hold', 'Pending'].includes(t) ? [217, 119, 6] : [100, 116, 139]; } }});
+        columnStyles: {0: {cellWidth: 105}, 1: {cellWidth: 105}, 3: {cellWidth: 70}},
+        didParseCell: (h) => { if(h.section === 'body' && h.column.index === 3){ const t = h.cell.raw; h.cell.styles.fontStyle = 'bold'; h.cell.styles.textColor = ['Success', 'Verified'].includes(t) ? [5, 150, 105] : ['Flagged', 'Hold', 'Pending'].includes(t) ? [217, 119, 6] : [100, 116, 139]; } }});
     const pages = doc.getNumberOfPages();
     for(let i = 1; i <= pages; i++){ doc.setPage(i); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120, 130, 145);
         doc.text('InternConnect  |  Audit trail & security log  |  ' + det['Generated on'], M, H - 22); doc.text('Page ' + i + ' of ' + pages, W - M, H - 22, {align: 'right'}); }
@@ -3384,7 +3433,12 @@ function renderOverview(){
           + '<div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full ' + (full ? 'bg-emerald-500' : 'bg-sky-600') + '" style="width:' + pct + '%"></div></div></a>';
     }).join('') : '<div class="px-5 py-6 text-[12.5px] text-slate-400 text-center">No active tasks.</div>';
 }
-if(document.getElementById('overviewPipeline')) renderOverview();
+function initCoordinatorOverview(){
+    if(document.getElementById('overviewPipeline')) renderOverview();
+}
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initOverview = initCoordinatorOverview;
 
 
 /* ============ Overview: Export Summary (Excel + PDF) ============ */
@@ -3522,7 +3576,8 @@ function exportOverviewXlsx(){
     return true;
 }
 
-if(document.getElementById('exportSummaryBtn')){
+function initCoordinatorSummaryExport(){
+    if(!document.getElementById('exportSummaryBtn')) return;
     const btn = document.getElementById('exportSummaryBtn');
     const menu = document.getElementById('exportSummaryMenu');
     const setMenu = (open) => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
@@ -3546,6 +3601,9 @@ if(document.getElementById('exportSummaryBtn')){
         showToast('Overview summary downloaded as ' + label + '.', 'success');
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initSummaryExport = initCoordinatorSummaryExport;
 
 
 /* ============ Alumni Status Requests (shared local prototype storage) ============ */
@@ -3634,7 +3692,12 @@ document.addEventListener('click', async (e) => {
         if(card) processAlumniRequest(card.dataset.alumniRequestEmail, approve ? 'approve' : 'reject');
     }
 });
-if(document.getElementById('wr-students') || document.body.dataset.page === 'requests') renderAlumniRequestSection();
+function initCoordinatorAlumniRequests(){
+    if(document.getElementById('wr-students') || document.body.dataset.page === 'requests') renderAlumniRequestSection();
+}
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initAlumniRequests = initCoordinatorAlumniRequests;
 
 
 /* ============ Student / Alumni Portal (student pages only) ============ */
@@ -5203,7 +5266,8 @@ function exportDirectoryPdf(){
     doc.save(directoryFile('pdf'));
     return true;
 }
-if(document.getElementById('exportDirBtn')){
+function initCoordinatorDirectoryExport(){
+    if(!document.getElementById('exportDirBtn')) return;
     const btn = document.getElementById('exportDirBtn'), menu = document.getElementById('exportDirMenu');
     const setMenu = (open) => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
     btn.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.classList.contains('hidden')); });
@@ -5220,6 +5284,9 @@ if(document.getElementById('exportDirBtn')){
         showToast('Partner & MOA directory downloaded as ' + label + '.', 'success');
     });
 }
+window.ICCore = window.ICCore || {};
+window.ICCore.coordinator = window.ICCore.coordinator || {};
+window.ICCore.coordinator.initDirectoryExport = initCoordinatorDirectoryExport;
 
 
 /* ============ Partner Company portal (optional: the coordinator can still do all of this) ============ */
