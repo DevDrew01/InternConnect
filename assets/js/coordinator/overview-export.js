@@ -37,12 +37,12 @@ function overviewSummary(){
 function exportOverviewPdf(){
     const lib = window.jspdf && window.jspdf.jsPDF;
     if(!lib){
-        showToast('The PDF library could not load (are you offline?). Use the Excel option instead.', 'warn');
+        showToast('The PDF library could not load (are you offline?). Please try again later.', 'warn');
         return false;
     }
     const doc = new lib({unit: 'pt', format: 'a4'});
     if(typeof doc.autoTable !== 'function'){
-        showToast('The PDF library could not load (are you offline?). Use the Excel option instead.', 'warn');
+        showToast('The PDF library could not load (are you offline?). Please try again later.', 'warn');
         return false;
     }
     const d = overviewSummary();
@@ -102,27 +102,6 @@ function exportOverviewPdf(){
     return true;
 }
 
-function exportOverviewXlsx(){
-    if(typeof XLSX === 'undefined'){
-        showToast('The Excel library could not load (are you offline?). Use the PDF option instead.', 'warn');
-        return false;
-    }
-    const d = overviewSummary();
-    const sheet = (rows, widths) => {
-        const ws = XLSX.utils.aoa_to_sheet(rows);
-        ws['!cols'] = widths.map(w => ({wch: w}));
-        return ws;
-    };
-    const wb = XLSX.utils.book_new();
-    // Sheet 1 = report details, a blank line, then the key numbers
-    XLSX.utils.book_append_sheet(wb, sheet(d.details.concat([[], ['Key numbers']], d.stats), [38, 32, 48]), 'Summary');
-    XLSX.utils.book_append_sheet(wb, sheet(d.pipeline, [22, 12]), 'Pipeline');
-    XLSX.utils.book_append_sheet(wb, sheet(d.attention.length > 1 ? d.attention : [d.attention[0], ['', 'All caught up.']], [6, 100]), 'Needs Attention');
-    XLSX.utils.book_append_sheet(wb, sheet(d.tasks.length > 1 ? d.tasks : [d.tasks[0], ['No active tasks.']], [38, 13, 12, 10, 11, 15, 19]), 'Task Tracker');
-    XLSX.writeFile(wb, 'Overview_Summary_' + fileSlug(d.code || 'batch') + '_' + todayISO() + '.xlsx');
-    return true;
-}
-
 function initCoordinatorSummaryExport(){
     if(!document.getElementById('exportSummaryBtn')) return;
     const btn = document.getElementById('exportSummaryBtn');
@@ -135,10 +114,9 @@ function initCoordinatorSummaryExport(){
         const item = e.target.closest('[data-export]');
         if(!item) return;
         setMenu(false);
-        const kind = item.dataset.export;
-        const label = kind === 'xlsx' ? 'Excel' : 'PDF';
+        const label = 'PDF';
         try {
-            if(!(kind === 'xlsx' ? exportOverviewXlsx() : exportOverviewPdf())) return;
+            if(!exportOverviewPdf()) return;
         } catch(err){
             console.error(err);
             showToast('Could not create the file. Please try again.', 'warn');

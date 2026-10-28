@@ -21,25 +21,30 @@ function initStudentJobs({currentUserRecord, isAlumni, session, show, hide, toas
 
   function openJobModal(id){
     const j=jobDetails[id]; if(!j)return;
+    const match=jobMatch(j,session()||{}), aiScore=aiMatchScores.get(id);
+    const displayScore=Number.isFinite(aiScore)?Math.round(aiScore*100):match.score;
     const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
     set('jobModalTitle',j.title);set('jobModalCompany',j.company);set('jobModalType',j.type);set('jobModalSalary',j.salary);set('jobModalDescription',j.description);set('jobModalDeadline',j.deadline);
-    const score=document.getElementById('jobModalScore');if(score)score.innerHTML='<i class="fa-solid fa-wand-magic-sparkles mr-1"></i>'+jobMatch(j,session()||{}).score+'% match';
+    const score=document.getElementById('jobModalScore');if(score)score.innerHTML='<i class="fa-solid fa-wand-magic-sparkles mr-1"></i>'+displayScore+'% match';
     const loc=document.getElementById('jobModalLocation');if(loc)loc.innerHTML='<i class="fa-solid fa-location-dot mr-1"></i>'+j.location;
-    const req=document.getElementById('jobModalRequirements');if(req)req.innerHTML=j.requirements.map(x=>'<li>'+x+'</li>').join('');
-    const tags=document.getElementById('jobModalSkillTags');if(tags)tags.innerHTML=jobMatch(j,session()||{}).skills.map(([n,m])=>(m ? '<span class="tag-chip matched"><i class="fa-solid fa-check"></i>'+n+'</span>' : '<span class="tag-chip gap">'+n+' <span class="chip-note">gap</span></span>')).join('');
+    const req=document.getElementById('jobModalRequirements');if(req)req.innerHTML=j.requirements.map(x=>'<li>'+esc(x)+'</li>').join('');
+    const tags=document.getElementById('jobModalSkillTags');if(tags)tags.innerHTML=match.skills.map(([n,m])=>(m ? '<span class="tag-chip matched"><i class="fa-solid fa-check"></i>'+esc(n)+'</span>' : '<span class="tag-chip gap">'+esc(n)+' <span class="chip-note">gap</span></span>')).join('');
     document.getElementById('jobModalApplyBtn')?.setAttribute('data-job',id);
     const ab=document.getElementById('jobModalApplyBtn'); if(ab){ const done=jmApplied(id,session()||{}); ab.textContent=done?'Applied':'Apply Now'; ab.disabled=done; ab.classList.toggle('opacity-60',done); }
     show('jobModal');
   }
   const chipHtml = (skills) => skills.map(([n,m]) => m ? '<span class="tag-chip matched"><i class="fa-solid fa-check"></i>'+esc(n)+'</span>' : '<span class="tag-chip gap">'+esc(n)+' <span class="chip-note">gap</span></span>').join('');
   let jobSort = 'match';
+  let aiMatchScores = new Map();
   function renderJobCards(){
     const me = session() || {}, list = document.getElementById('jobList'); if(!list) return;
     const cards = [...list.querySelectorAll('.job-card')];
     cards.forEach(card => {
       const j = jobDetails[card.dataset.job]; if(!j) return;
-      const m = jobMatch(j, me); card.dataset.score = m.score; card.dataset.km = parseFloat((j.location.match(/([\d.]+) km/) || [0, 0])[1]) || 0;
-      const badge = card.querySelector('.fa-wand-magic-sparkles')?.parentElement; if(badge) badge.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles mr-1"></i>' + m.score + '%';
+      const m = jobMatch(j, me), aiScore = aiMatchScores.get(card.dataset.job);
+      const score = Number.isFinite(aiScore) ? aiScore : m.score / 100;
+      card.dataset.score = score; card.dataset.km = parseFloat((j.location.match(/([\d.]+) km/) || [0, 0])[1]) || 0;
+      const badge = card.querySelector('.fa-wand-magic-sparkles')?.parentElement; if(badge) badge.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles mr-1"></i>' + Math.round(score * 100) + '%';
       const chips = card.querySelector('.tag-chip')?.parentElement; if(chips) chips.innerHTML = chipHtml(m.skills);
       const btn = card.querySelector('.apply-btn'), done = jmApplied(card.dataset.job, me);
       if(btn){ btn.textContent = done ? 'Applied' : 'Apply Now'; btn.disabled = done; btn.classList.toggle('opacity-60', done); btn.classList.toggle('cursor-default', done); }
@@ -52,6 +57,23 @@ function initStudentJobs({currentUserRecord, isAlumni, session, show, hide, toas
       const badge = !a.internship ? jobBadge(st) : st === 'Cancelled' ? '<span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">Cancelled</span>' : placementBadge(st);
       return '<tr><td class="px-5 py-3 text-slate-700">' + esc(a.title) + '</td><td class="px-5 py-3 text-slate-600">' + esc(a.company) + '</td><td class="px-5 py-3 text-slate-500">' + formatDate(a.date) + '</td><td class="px-5 py-3">' + badge + '</td></tr>'; }).join('')
       : '<tr><td colspan="4" class="px-5 py-6 text-center text-[12.5px] text-slate-400">No applications yet. Apply to a job above.</td></tr>';
+  }
+  async function loadAiMatchScores(){
+    const me = session() || {};
+    const studentSkills = jmSkills(me).map(skill => String(skill).trim()).filter(Boolean);
+    const postings = Object.entries(jobDetails).map(([id, job]) => ({
+      id,
+      ...(job.onet_soc_code ? {onet_soc_code: job.onet_soc_code} : {}),
+      required_skills: (job.skills || []).map(skill => Array.isArray(skill) ? skill[0] : skill).filter(Boolean)
+    })).filter(posting => posting.required_skills.length);
+    if(!studentSkills.length || !postings.length || !window.ICCore?.aiMatching?.rankJobs) return;
+    try{
+      aiMatchScores = await window.ICCore.aiMatching.rankJobs(studentSkills, postings);
+      renderJobCards();
+    }catch(error){
+      // The existing local score remains available when the optional local AI service is stopped.
+      console.debug('Local AI matching is unavailable; keeping the existing match ranking.');
+    }
   }
   async function applyJob(id){
     const j = jobDetails[id], me = session() || {}; if(!j) return false;
@@ -81,6 +103,7 @@ function initStudentJobs({currentUserRecord, isAlumni, session, show, hide, toas
     document.getElementById('closeJobModalBtn')?.addEventListener('click',()=>hide('jobModal'));
     document.getElementById('jobModalApplyBtn')?.addEventListener('click',()=>{applyJob(document.getElementById('jobModalApplyBtn').dataset.job).then(ok=>{if(ok) hide('jobModal');});});
     renderJobCards();
+    loadAiMatchScores();
     filterJobs();
   }
   initJobs();

@@ -183,9 +183,6 @@
               <i class="fa-solid fa-file-export"></i> Export Summary <i class="fa-solid fa-chevron-down text-[9px] text-slate-400"></i>
             </button>
             <div id="exportSummaryMenu" role="menu" class="hidden absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-30">
-              <button type="button" role="menuitem" data-export="xlsx" class="w-full text-left px-3.5 py-2 text-[12.5px] text-slate-700 hover:bg-slate-50 flex items-center gap-2.5">
-                <i class="fa-solid fa-file-excel text-emerald-600 w-4 text-center"></i><span>Excel workbook <span class="text-slate-400">(.xlsx)</span></span>
-              </button>
               <button type="button" role="menuitem" data-export="pdf" class="w-full text-left px-3.5 py-2 text-[12.5px] text-slate-700 hover:bg-slate-50 flex items-center gap-2.5">
                 <i class="fa-solid fa-file-pdf text-red-500 w-4 text-center"></i><span>PDF report <span class="text-slate-400">(.pdf)</span></span>
               </button>
@@ -257,8 +254,6 @@
 <!-- Toast Container -->
 <div id="toastContainer"></div>
 
-<!-- SheetJS: builds the .xlsx for Export Summary (this page only) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- jsPDF + AutoTable: build the .pdf for Export Summary (this page only) -->
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.31/dist/jspdf.plugin.autotable.min.js"></script>

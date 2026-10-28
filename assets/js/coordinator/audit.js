@@ -30,8 +30,8 @@ window.ICCore.audit.rows = auditRows;
     const item = e.target.closest('[data-export]');
     if (!item) return;
     setMenu(false);
-    const label = item.dataset.export === 'xlsx' ? 'Excel' : 'PDF';
-    try { if (!(item.dataset.export === 'xlsx' ? audit.exportXlsx() : audit.exportPdf())) return; }
+    const label = 'PDF';
+    try { if (!audit.exportPdf()) return; }
     catch (err) { console.error(err); showToast('Could not create the file. Please try again.', 'warn'); return; }
     audit.log('Exported the audit trail log (' + label + ')');
     audit.render();
