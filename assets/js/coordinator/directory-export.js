@@ -45,15 +45,8 @@ function exportDirectoryPdf(){
 }
 function initCoordinatorDirectoryExport(){
     if(!document.getElementById('exportDirBtn')) return;
-    const btn = document.getElementById('exportDirBtn'), menu = document.getElementById('exportDirMenu');
-    const setMenu = (open) => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
-    btn.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.classList.contains('hidden')); });
-    document.addEventListener('click', (e) => { if(!menu.contains(e.target)) setMenu(false); });
-    document.addEventListener('keydown', (e) => { if(e.key === 'Escape') setMenu(false); });
-    menu.addEventListener('click', (e) => {
-        const item = e.target.closest('[data-export]');
-        if(!item) return;
-        setMenu(false);
+    const btn = document.getElementById('exportDirBtn');
+    btn.addEventListener('click', () => {
         const label = 'PDF';
         try { if(!exportDirectoryPdf()) return; }
         catch(err){ console.error(err); showToast('Could not create the file. Please try again.', 'warn'); return; }

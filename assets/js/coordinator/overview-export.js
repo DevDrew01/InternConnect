@@ -105,15 +105,7 @@ function exportOverviewPdf(){
 function initCoordinatorSummaryExport(){
     if(!document.getElementById('exportSummaryBtn')) return;
     const btn = document.getElementById('exportSummaryBtn');
-    const menu = document.getElementById('exportSummaryMenu');
-    const setMenu = (open) => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
-    btn.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.classList.contains('hidden')); });
-    document.addEventListener('click', (e) => { if(!menu.contains(e.target)) setMenu(false); });
-    document.addEventListener('keydown', (e) => { if(e.key === 'Escape') setMenu(false); });
-    menu.addEventListener('click', (e) => {
-        const item = e.target.closest('[data-export]');
-        if(!item) return;
-        setMenu(false);
+    btn.addEventListener('click', () => {
         const label = 'PDF';
         try {
             if(!exportOverviewPdf()) return;
