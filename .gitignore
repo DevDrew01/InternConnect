@@ -9,3 +9,4 @@ ai-service/onet_data/
 *.log
 __pycache__/
 *.py[cod]
+.local/

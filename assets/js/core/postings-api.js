@@ -20,6 +20,7 @@
     }finally{ clearTimeout(timer); }
   }
   root.ICPostingApi = {
+    me: () => request('/api/partner/me'),
     attendance: () => request('/api/partner/attendance'),
     placements: () => request('/api/partner/placements'),
     applications: () => request('/api/partner/applications'),
@@ -49,7 +50,12 @@
     logout: async () => { try { await request('/api/auth/student/session', {method: 'DELETE', studentAuth: true}); } finally { sessionStorage.removeItem('ic_student_token'); } }
   };
   const coordinatorRequest = (path, options = {}) => request(path, {...options, coordinatorAuth: true});
+  root.ICNotificationApi = {
+    list: role => request('/api/'+role+'/notifications',{studentAuth:role==='student',coordinatorAuth:role==='coordinator'}),
+    read: (role,ids) => request('/api/'+role+'/notifications/read',{method:'POST',body:JSON.stringify({ids}),studentAuth:role==='student',coordinatorAuth:role==='coordinator'})
+  };
   root.ICCoordinatorApi = {
+    audit: code => coordinatorRequest('/api/coordinator/audit?class_code='+encodeURIComponent(code)),
     register: data => coordinatorRequest('/api/auth/coordinator/register', {method: 'POST', body: JSON.stringify(data)}),
     login: (email, password) => coordinatorRequest('/api/auth/coordinator/login', {method: 'POST', body: JSON.stringify({email, password})}),
     state: () => coordinatorRequest('/api/coordinator/state'),

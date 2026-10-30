@@ -228,3 +228,83 @@ Acceptance: student submits in browser A; coordinator sees it in browser B, retu
   with feedback; student revises; coordinator approves and grades; student refreshes
   and sees feedback, grade and verified experience. Confirm duplicate submissions,
   stale reviews, foreign-batch reviews and excessive grades are rejected.
+
+## Task 7 implementation (2026-10-29)
+
+- Added Explore Careers beside Export PDF in Resume Builder. The accessible modal
+  uses the saved resume, technical/soft skills and coordinator-verified report
+  summaries. Name, contact details, photos and PDF attachments are not sent.
+- Uses the existing local MiniLM model and imported O*NET occupation catalog.
+  Occupation embeddings are cached in memory. Skill and narrative embeddings are
+  averaged and compared with occupation profiles using cosine similarity.
+- Shows five ranked career titles, descriptions, semantic alignment percentages,
+  direct skill overlaps and skills to explore. A score is raw similarity multiplied
+  by 100 with display bounds; it is not a calibrated likelihood or qualification
+  judgment. No direct skill overlap is explicitly identified in the explanation.
+- Includes a saved-resume prerequisite, loading state, timeout/retry and unavailable
+  service feedback. Results do not modify resumes or create applications.
+- All 23 AI-service tests passed, including seven new career tests. JavaScript syntax
+  and diff checks passed. Actual local-model spot checks produced Web Developers
+  first for a web/software profile (50.4%), Bookkeeping/Accounting/Auditing Clerks
+  first for an accounting profile (63.9%), and hotel desk clerks second for a hotel
+  profile (65.7%; restaurant hosts ranked first at 72.3%). These are sanity checks,
+  not an accuracy benchmark. Domain-specific relevance still needs human-labeled
+  evaluation; the system must not claim validated predictive accuracy.
+- Restart the AI service on port 8000. This feature does not add database tables.
+  Full authenticated browser interaction and thesis evaluation remain pending.
+
+Acceptance: save a resume, open Explore Careers, inspect suggestions; change and save
+skills, reopen and check results. An unsaved/empty resume must not yield suggestions.
+Stopping the AI service must show a retryable message rather than fabricated scores.
+
+## Task 8A implementation (2026-10-29)
+
+- Added server-derived notification feeds for students, coordinators and partners.
+  Sources include actual tasks, report submissions/reviews/grades, applications,
+  registration requests, deployment confirmations and student attendance alerts.
+- Added `notification_receipts` keyed by server-authenticated role/account and stable
+  notification ID. Opening the bell marks displayed entries read; View all marks the
+  expanded feed. Visiting the relevant tab marks its entries read. Coordinator tab
+  reads and request badges respect the active batch.
+- All 21 dashboard pages use the shared client. Empty feeds have no unread dot;
+  read state survives refresh/browser changes. Revised submissions get new IDs.
+  A notification outage shows an unavailable state without blocking dashboard login.
+- Student Recent Activity uses the same authoritative feed. The feed is a bounded
+  view of current records (100 items), not a complete permanent event history.
+- Removed the remaining Word export from coordinator report detail. Its PDF uses
+  the server-loaded narrative, status, feedback and email-keyed grade. Attendance and
+  classwork-based exports already consume the hydrated server data.
+- Passed 78 backend tests, eight JavaScript syntax checks, API authentication/CORS
+  checks and a client-state check for tab read persistence/outage handling.
+- NEW schema step: run `manage.py init` again for `notification_receipts` and restart
+  only the account API on port 8001. Keep the AI service on port 8000 running.
+- Live notification/read-state verification remains pending. Server audit history,
+  general document-vault authority and remaining export source gaps still need work;
+  Task 8 as a whole is not complete.
+
+Acceptance: create a real report/request/application, verify its scoped notification,
+  open the destination tab or bell, refresh and sign in from another browser, and
+  confirm the read state persists. A revised report should create a new unread entry.
+
+## Task 8B first slice (2026-10-30)
+
+- Added persistent, server-written `audit_events` for report submission, resubmission,
+  review and grading. Entries use authenticated actor IDs, student IDs, task IDs and
+  server UTC timestamps. Raw narratives, passwords and review text are not copied.
+- Audit writes share the workflow transaction; a write failure rolls back the report
+  change. There is no client endpoint to fabricate, edit or delete audit entries.
+- Coordinator audit reads enforce current batch ownership and return the latest 500
+  entries, displayed in Philippine time. History is retained beyond that display cap.
+- Database accounts no longer display or export browser-only audit entries. Loading
+  and failure states disable export; PDF uses the same server-loaded batch records.
+  Earlier activity is not backfilled and other workflows are not yet audited.
+- Added scope/timezone checks and report audit assertions; 80 backend tests passed.
+- NEW schema step: run `manage.py init` for `audit_events` (also creates the previous
+  notification receipts table if missing), then restart account API 8001. Leave AI
+  8000 running. Live database/browser acceptance is still pending.
+- Remaining Task 8 work: audit coverage for other mutations, general document vault,
+  remaining export sources and live notification verification.
+
+Acceptance: submit, revise, review and grade a report; check Audit Trail in another
+browser on the owning coordinator account and refresh. Another coordinator must not
+see these entries. New accounts must show an empty feed. Export must match the feed.

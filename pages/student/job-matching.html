@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="../../assets/css/styles.css">
-    <script src="../../assets/js/theme.js"></script>
+    <link rel="stylesheet" href="../../assets/css/styles.css?v=20261030-structured-work">
+    <script src="../../assets/js/theme.js?v=20261030-partner-theme"></script>
 <title>Internship Matching — InternConnect</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -92,9 +92,12 @@
 </header>
 <main class="flex-1 px-5 lg:px-8 py-6 pb-10">
 <section class="tab-panel space-y-5" id="tab-jobs">
+<div class="flex flex-wrap items-center justify-between gap-3">
 <div>
 <h1 class="text-xl font-bold text-slate-900" id="jobsTitle">Internship Matching</h1>
 <p class="text-sm text-slate-500 mt-0.5" id="jobsSubtitle">Ranked by semantic match to your declared and verified skills.</p>
+</div>
+<button id="careerMatchesBtn" type="button" class="text-[12.5px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 px-4 py-2.5 rounded-md transition"><i class="fa-solid fa-compass mr-1.5"></i>Explore Careers</button>
 </div>
 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-3 flex flex-wrap items-center gap-2.5">
 <select class="border border-slate-200 rounded-md px-3 py-2 text-[12.5px] text-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-400" id="courseFilter">
@@ -256,12 +259,14 @@
 <script src="../../assets/js/core/placements.js"></script>
 <script src="../../assets/js/core/retention.js"></script>
 <script src="../../assets/js/core/ai-matching.js"></script>
+<script src="../../assets/js/core/calendar.js?v=20261030-fast-picker"></script>
 <script src="../../assets/js/core/shell.js"></script>
 <script src="../../assets/js/script.js"></script><script src="../../assets/js/core/date.js"></script>
 <script src="../../assets/js/core/postings-api.js"></script>
+<script src="../../assets/js/core/notifications.js"></script>
 <script src="../../assets/js/core/jobs.js"></script>
 <script src="../../assets/js/student/runtime.js"></script>
-<script src="../../assets/js/student/attendance.js"></script>
+<script src="../../assets/js/student/attendance.js?v=20261030-records"></script>
 <script src="../../assets/js/student/task-records.js"></script>
 <script src="../../assets/js/student/internship-overview.js"></script>
 <script src="../../assets/js/student/day-log.js"></script>
@@ -272,5 +277,6 @@
 <script src="../../assets/js/student/ui.js"></script>
 <script src="../../assets/js/student/profile.js"></script>
 <script src="../../assets/js/student/jobs.js"></script>
+<script src="../../assets/js/student/career-matches.js?v=20261030-matching"></script>
 </body>
 </html>

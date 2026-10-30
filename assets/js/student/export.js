@@ -29,7 +29,7 @@
   }
 
   // Personal resumes use a separate layout from school-branded OJT documents.
-  async function exportStudentResumePdf(filename, name, contact, sections, photo, toast){
+  async function exportStudentResumePdf(filename, name, contact, sections, photo, toast, workExperiences=[], education=null){
     const Pdf = window.jspdf?.jsPDF;
     if(!Pdf) return toast('The PDF library could not load. Please try again.', 'warn');
     const doc = new Pdf({unit:'pt', format:'a4'});
@@ -46,8 +46,8 @@
       }catch(error){return toast('Please upload the photo again, or export without a photo.', 'warn');}
     }
     const page=needed=>{if(y+needed>height-margin){doc.addPage();y=margin;}};
-    const write=(value,size,bold,lineWidth=usable)=>{
-      doc.setFont('times',bold?'bold':'normal');doc.setFontSize(size);
+    const write=(value,size,bold,lineWidth=usable,style=bold?'bold':'normal')=>{
+      doc.setFont('times',style);doc.setFontSize(size);
       const lines=doc.splitTextToSize(String(value),lineWidth);
       lines.forEach(line=>{page(size*1.25);doc.text(line,margin,y);y+=size*1.25;});
     };
@@ -88,7 +88,42 @@
       write(heading.toUpperCase(),14,true);
       doc.setDrawColor(0,0,0);doc.setLineWidth(.4);
       doc.line(margin,y-8,width-margin,y-8);y+=3;
-      if(['Soft Skills','Technical Skills'].includes(heading)){
+      if(heading==='Education' && education){
+        const dates=window.ICResumeWork.range(education);
+        doc.setFont('times','bold');doc.setFontSize(11);
+        const dateWidth=dates?doc.getTextWidth(dates)+12:0;
+        doc.setFont('times','bold');
+        const programs=education.program?doc.splitTextToSize(education.program,usable-dateWidth):[];
+        page(Math.max(1,Math.min(programs.length,2))*13.75+(education.school?12.5:0));
+        if(dates)doc.text(dates,width-margin,y,{align:'right'});
+        programs.forEach(line=>{page(13.75);doc.text(line,margin,y);y+=13.75;});
+        if(!programs.length && dates)y+=13.75;
+        if(education.school)write(education.school,10,false,usable,'italic');
+      }else if(heading==='Summary' || heading==='Education'){
+        write(value,bodySize,false);
+      }else if(heading==='Work or Related Experience' && workExperiences.length){
+        workExperiences.forEach((entry,index)=>{
+          if(index) y+=6;
+          const dates=window.ICResumeWork.range(entry);
+          doc.setFont('times','bold');doc.setFontSize(11);
+          const dateWidth=dates?doc.getTextWidth(dates)+12:0;
+          doc.setFont('times','bold');
+          const titles=doc.splitTextToSize(entry.text,usable-dateWidth);
+          page(Math.min(titles.length,2)*13.75+(entry.position?12.5:0)+(entry.bullets?.length?13.75:0));
+          const top=y;
+          if(dates)doc.text(dates,width-margin,top,{align:'right'});
+          titles.forEach(line=>{page(13.75);doc.text(line,margin,y);y+=13.75;});
+          if(entry.position){
+            doc.setFont('times','italic');doc.setFontSize(10);
+            doc.splitTextToSize(entry.position,usable).forEach(line=>{page(12.5);doc.text(line,margin,y);y+=12.5;});
+          }
+          doc.setFont('times','normal');doc.setFontSize(11);
+          (entry.bullets || []).forEach(bullet=>{
+            const lines=doc.splitTextToSize(bullet,usable-24);
+            lines.forEach((line,index)=>{page(13.75);if(index===0)doc.text('•',margin+12,y);doc.text(line,margin+24,y);y+=13.75;});
+          });
+        });
+      }else if(['Soft Skills','Technical Skills'].includes(heading)){
         const skills=items(value);
         doc.setFont('times','normal');doc.setFontSize(bodySize);
         for(let start=0;start<skills.length;start+=12){

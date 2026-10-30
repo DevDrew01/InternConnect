@@ -134,7 +134,7 @@ function renderProfile(name){
         : NEXT_HINT[p.status] || '';
 
     const header = '<div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-wrap items-center gap-4">'
-      + '<div class="w-12 h-12 rounded-full bg-sky-100 text-sky-700 font-semibold flex items-center justify-center">' + esc(initials) + '</div>'
+      + '<div class="w-12 h-12 rounded-full bg-sky-100 text-sky-700 font-semibold flex items-center justify-center">' + profilePictureContent(p) + '</div>'
       + '<div class="flex-1 min-w-0"><div class="flex items-center gap-2 flex-wrap"><h1 class="text-lg font-bold text-slate-900">' + esc(p.name) + '</h1>' + placementBadge(p.status) + '</div>'
       + '<div class="text-[12.5px] text-slate-500 mt-0.5">' + [p.studentNo, p.company || 'No partner company yet'].filter(Boolean).map(esc).join(' · ') + '</div></div>'
       + '<div class="flex gap-2">'

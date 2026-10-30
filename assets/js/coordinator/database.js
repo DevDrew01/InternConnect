@@ -33,5 +33,6 @@ window.syncCoordinatorState = async function(){
     localStorage.setItem('ic_session', JSON.stringify({...oldSession, ...result.user}));
     if(!codes.has(localStorage.getItem('ic_active_class')) && result.batches.length) setActiveClass(result.batches[0].code);
     refreshHeaderCode();
+    await window.ICNotifications.load();
     return result;
 };

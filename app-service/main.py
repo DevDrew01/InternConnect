@@ -21,6 +21,8 @@ from placements import router as placements_router
 from attendance import router as attendance_router
 from tasks import router as tasks_router
 from reports import router as reports_router
+from notifications import router as notifications_router
+from audit import router as audit_router
 
 app = FastAPI(title='InternConnect App API')
 app.include_router(student_router)
@@ -32,6 +34,8 @@ app.include_router(placements_router)
 app.include_router(attendance_router)
 app.include_router(tasks_router)
 app.include_router(reports_router)
+app.include_router(notifications_router)
+app.include_router(audit_router)
 app.add_middleware(CORSMiddleware,
     allow_origins=[x.strip() for x in os.getenv('IC_APP_ALLOWED_ORIGINS', '').split(',') if x.strip()],
     allow_origin_regex=r'^https?://(localhost|127\.0\.0\.1)(:\d+)?$',
@@ -100,7 +104,7 @@ class Posting(BaseModel):
 def posting_json(row):
     payload = json.loads(row['payload']) if isinstance(row['payload'], str) else row['payload']
     return {**payload, 'id': row['id'], 'company': row['company'],
-            'coordinates': {'lat': row['latitude'], 'lng': row['longitude'], 'source': 'browser-gps'} if row['latitude'] is not None and row['longitude'] is not None else None,
+            'coordinates': {'lat': row['latitude'], 'lng': row['longitude'], 'source': (payload.get('coordinates') or {}).get('source', 'browser-gps')} if row['latitude'] is not None and row['longitude'] is not None else None,
             'status': row['status'], 'postedAt': row['posted_at'].isoformat()}
 
 
@@ -110,10 +114,10 @@ def health():
         cursor = connection.cursor()
         # Check every implemented storage boundary, without loading user records.
         # These identifiers are fixed server constants, never request input.
-        for table in ('companies', 'partner_accounts', 'posting_sessions', 'job_postings',
+        for table in ('audit_events', 'companies', 'partner_accounts', 'posting_sessions', 'job_postings',
                       'student_batches', 'student_accounts', 'student_sessions',
                       'coordinator_accounts', 'coordinator_batches', 'coordinator_sessions',
-                      'login_attempts', 'partner_profiles', 'student_resumes', 'internship_applications', 'official_placements', 'student_attendance', 'classwork_tasks', 'narrative_reports'):
+                      'login_attempts', 'partner_profiles', 'student_resumes', 'internship_applications', 'official_placements', 'student_attendance', 'classwork_tasks', 'narrative_reports', 'notification_receipts'):
             cursor.execute(f'SELECT * FROM {table} LIMIT 0')
             cursor.fetchall()
     return {'status': 'ok', 'database': 'mysql'}
@@ -182,6 +186,11 @@ def student_login(body: Login):
 @app.post('/api/auth/coordinator/login')
 def coordinator_login(body: Login):
     return authenticate(body, 'coordinator')
+
+
+@app.get('/api/partner/me')
+def partner_profile(account=Depends(partner)):
+    return {'user': public_partner(account)}
 
 
 @app.delete('/api/auth/partner/session')

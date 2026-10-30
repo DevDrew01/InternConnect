@@ -18,6 +18,15 @@ Restart the API after importing. Data and the ZIP remain in `ai-service/onet_dat
 
 The following endpoints are available in `/docs`:
 
+- `POST /api/match/careers`: ranks local occupation profiles against saved resume
+  skills and narrative context. Returns five suggestions by default, raw cosine
+  similarity expressed as an alignment percentage, direct listed-skill overlaps,
+  and skills to explore. These percentages are not calibrated hiring probabilities
+  or qualification assessments. Missing listed skills do not prove missing ability.
+  The first request builds an in-memory occupation embedding index; restart after
+  changing model or catalog files. No external AI calls or database migrations are
+  required. The Resume Builder's Explore Careers dialog uses this endpoint.
+
 - `GET /api/onet/status`: import readiness, missing tables and loaded vocabulary counts.
 - `GET /api/onet/occupations?query=software%20developer`: occupation candidates from official and reported titles. Exact aliases appear first. Results are candidates to review; no occupation is assigned automatically.
 - `GET /api/onet/occupations/15-1252.00`: occupation description, skills and knowledge sorted by O*NET importance, software examples, and task statements. Suppressed or not-relevant skill/knowledge ratings are excluded. Importance uses the original O*NET IM scale; it is not a student score.

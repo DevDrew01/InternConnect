@@ -103,3 +103,13 @@ CREATE TABLE IF NOT EXISTS narrative_reports (
  FOREIGN KEY(student_id) REFERENCES student_accounts(id),
  FOREIGN KEY(reviewed_by) REFERENCES coordinator_accounts(id)
 ) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS notification_receipts (
+ role VARCHAR(20) NOT NULL, account_id BIGINT NOT NULL, event_id CHAR(64) NOT NULL,
+ read_at DATETIME NOT NULL, PRIMARY KEY(role,account_id,event_id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS audit_events (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY, class_code VARCHAR(100) NOT NULL,
+ actor_role VARCHAR(20) NOT NULL, actor_id BIGINT NOT NULL, subject_id BIGINT NOT NULL,
+ resource_id VARCHAR(64) NOT NULL, action VARCHAR(200) NOT NULL, status VARCHAR(30) NOT NULL,
+ created_at DATETIME NOT NULL, INDEX audit_batch_id (class_code,id)
+) ENGINE=InnoDB;
