@@ -113,3 +113,10 @@ CREATE TABLE IF NOT EXISTS audit_events (
  resource_id VARCHAR(64) NOT NULL, action VARCHAR(200) NOT NULL, status VARCHAR(30) NOT NULL,
  created_at DATETIME NOT NULL, INDEX audit_batch_id (class_code,id)
 ) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS vault_letters (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY, company_id BIGINT NOT NULL, student_id BIGINT NOT NULL,
+ kind VARCHAR(20) NOT NULL, payload JSON NOT NULL, history JSON NOT NULL,
+ owner_role VARCHAR(20) NOT NULL, owner_id BIGINT NOT NULL, version INT NOT NULL,
+ updated_at DATETIME NOT NULL, UNIQUE KEY student_company_letter(company_id,student_id,kind),
+ FOREIGN KEY(company_id) REFERENCES companies(id), FOREIGN KEY(student_id) REFERENCES student_accounts(id)
+) ENGINE=InnoDB;

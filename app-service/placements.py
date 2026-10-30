@@ -1,6 +1,7 @@
 """Coordinator-confirmed deployments with retained documentary evidence."""
 import json
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, model_validator
 from db import database
 from student_auth import student
@@ -101,6 +102,41 @@ def read_placements(where,args):
 @router.get('/api/student/placements')
 def mine(account=Depends(student)):
     return read_placements('WHERE p.student_id=%s',(account['id'],))
+
+
+@router.get('/api/student/placement/documents')
+def student_documents(account=Depends(student)):
+    documents=shared_student_letters(account)
+    with database() as connection:
+        cursor=connection.cursor(dictionary=True)
+        cursor.execute('SELECT endorsement,acceptance FROM official_placements WHERE student_id=%s',(account['id'],))
+        row=cursor.fetchone()
+    shared_kinds={file['kind'] for file in documents}
+    for kind in ('endorsement','acceptance'):
+        if kind in shared_kinds or not row or not row.get(kind):
+            continue
+        scan=json.loads(row[kind]) if isinstance(row[kind],str) else row[kind]
+        documents.append(dict(kind=kind,name=scan['name']))
+    return {'documents':documents}
+
+
+def shared_student_letters(account):
+    from vault_letters import student_metadata
+    return student_metadata(account)
+
+
+@router.get('/api/student/placement/documents/{kind}')
+def student_document(kind:str,account=Depends(student)):
+    if kind not in ('endorsement','acceptance'):
+        raise HTTPException(404,'Document not found.')
+    with database() as connection:
+        cursor=connection.cursor(dictionary=True)
+        cursor.execute(f'SELECT {kind} AS document FROM official_placements WHERE student_id=%s',(account['id'],))
+        row=cursor.fetchone()
+    if not row or not row.get('document'):
+        raise HTTPException(404,'This letter is not available yet.')
+    scan=json.loads(row['document']) if isinstance(row['document'],str) else row['document']
+    return JSONResponse({'document':scan},headers={'Cache-Control':'no-store'})
 
 
 @router.get('/api/coordinator/placements')

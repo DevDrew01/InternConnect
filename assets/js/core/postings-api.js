@@ -33,6 +33,8 @@
     logout: async () => { try { await request('/api/auth/partner/session', {method: 'DELETE'}); } finally { sessionStorage.removeItem('ic_postings_token'); } }
   };
   root.ICStudentApi = {
+    placementDocuments: () => request('/api/student/placement/documents', {studentAuth:true}),
+    placementDocument: kind => request('/api/student/placement/documents/'+encodeURIComponent(kind), {studentAuth:true}),
     reports: () => request('/api/student/reports', {studentAuth:true}),
     submitReport: (id,raw) => request('/api/student/tasks/'+encodeURIComponent(id)+'/report', {method:'POST',body:JSON.stringify({raw}),studentAuth:true}),
     tasks: () => request('/api/student/tasks', {studentAuth:true}),
@@ -50,6 +52,18 @@
     logout: async () => { try { await request('/api/auth/student/session', {method: 'DELETE', studentAuth: true}); } finally { sessionStorage.removeItem('ic_student_token'); } }
   };
   const coordinatorRequest = (path, options = {}) => request(path, {...options, coordinatorAuth: true});
+  const vaultRequest=(path,options={})=>{
+    const role=JSON.parse(localStorage.getItem('ic_session') || '{}').role;
+    const route=role==='partnercompany'?'partner':role;
+    if(!['student','coordinator','partner'].includes(route))throw new Error('Sign in to open this vault.');
+    return request('/api/'+route+'/vault/letters'+path,{...options,studentAuth:route==='student',coordinatorAuth:route==='coordinator'});
+  };
+  root.ICVaultApi={
+    list:(company,code)=>vaultRequest('?company='+encodeURIComponent(company)+'&class_code='+encodeURIComponent(code)),
+    upload:data=>vaultRequest('',{method:'POST',body:JSON.stringify(data)}),
+    read:id=>vaultRequest('/'+encodeURIComponent(id)),
+    remove:id=>vaultRequest('/'+encodeURIComponent(id),{method:'DELETE'})
+  };
   root.ICNotificationApi = {
     list: role => request('/api/'+role+'/notifications',{studentAuth:role==='student',coordinatorAuth:role==='coordinator'}),
     read: (role,ids) => request('/api/'+role+'/notifications/read',{method:'POST',body:JSON.stringify({ids}),studentAuth:role==='student',coordinatorAuth:role==='coordinator'})

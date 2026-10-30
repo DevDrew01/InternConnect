@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="../../assets/css/styles.css?v=20261030-centered-header">
+    <link rel="stylesheet" href="../../assets/css/styles.css?v=20261030-aligned-skills">
     <script src="../../assets/js/theme.js?v=20261030-partner-theme"></script>
     <title>Resume Builder — InternConnect</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -222,7 +222,7 @@
                   <input class="w-full border border-slate-300 rounded-md px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400" id="ed-email" type="text" value=""/>
                 </div>
                 <div>
-                  <label class="text-[13px] font-semibold text-slate-700 block mb-1">Resume Objective</label>
+                  <label class="text-[13px] font-semibold text-slate-700 block mb-1">Summary</label>
                   <textarea class="w-full border border-slate-300 rounded-md px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400" id="ed-objective" rows="2">Computer Science student seeking an OJT placement to apply and grow my skills in software development and QA.</textarea>
                 </div>
                 <div>
@@ -230,7 +230,7 @@
                   <div id="workExperienceRows" class="space-y-3">
                   <div>
                   <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] items-center">
-                    <input type="text" data-work-title id="ed-workexp" aria-label="Work title" placeholder="Company or work title" class="w-full min-w-0 border border-slate-300 rounded-md px-3 py-2 text-[13px]">
+                    <input type="text" data-work-company aria-label="Company name" placeholder="Company name" maxlength="200" class="w-full min-w-0 border border-slate-300 rounded-md px-3 py-2 text-[13px]">
                     <div class="resume-inline-date-range">
                       <label for="ed-workStart" class="sr-only">Experience start month and year</label>
                       <input type="month" data-work-start id="ed-workStart" class="resume-month-input min-w-0 w-36 border border-slate-300 rounded-md px-2 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400" title="Experience start month and year" aria-label="Experience start month and year">
@@ -239,7 +239,8 @@
                       <input type="month" data-work-end id="ed-workEnd" class="resume-month-input min-w-0 w-36 border border-slate-300 rounded-md px-2 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-sky-400" title="Experience end month and year" aria-label="Experience end month and year">
                     </div>
                   </div>
-                    <input type="text" data-work-position aria-label="Position" placeholder="Position" maxlength="200" class="w-full border border-slate-300 rounded-md px-3 py-2 text-[13px] mt-2">
+                    <input type="text" data-work-title id="ed-workexp" aria-label="Work title" placeholder="Work title" class="w-full border border-slate-300 rounded-md px-3 py-2 text-[13px] mt-2">
+                    <input type="text" data-work-location aria-label="Work location" placeholder="Location" maxlength="200" class="w-full border border-slate-300 rounded-md px-3 py-2 text-[13px] mt-2">
                     <div data-work-bullets class="space-y-2 mt-2"></div>
                     <div class="flex flex-wrap gap-2 mt-2"><button type="button" data-add-bullet class="resume-work-action">Add bullet</button><button type="button" data-work-delete class="resume-work-action">Delete experience</button></div>
                   </div>
@@ -395,18 +396,20 @@
 <script src="../../assets/js/student/runtime.js"></script>
 <script src="../../assets/js/student/attendance.js?v=20261030-records"></script>
 <script src="../../assets/js/student/task-records.js"></script>
-<script src="../../assets/js/student/internship-overview.js"></script>
+<script src="../../assets/js/student/document-viewer.js?v=20261030"></script>
+<script src="../../assets/js/student/internship-overview.js?v=20261030-shared-letters"></script>
 <script src="../../assets/js/student/day-log.js"></script>
 <script src="../../assets/js/student/notifications.js"></script>
 <script src="../../assets/js/student/account.js"></script>
-<script src="../../assets/js/core/postings-api.js"></script>
+<script src="../../assets/js/core/postings-api.js?v=20261030-shared-letters"></script>
+<script src="../../assets/js/core/shared-letters.js?v=20261030"></script>
 <script src="../../assets/js/core/notifications.js"></script>
 <script src="../../assets/js/student/common.js"></script>
 <script src="../../assets/js/student/session.js"></script>
 <script src="../../assets/js/student/ui.js"></script>
 <script src="../../assets/js/student/profile.js"></script>
-<script src="../../assets/js/student/export.js?v=20261030-bold-dates"></script>
-<script src="../../assets/js/student/resume-work.js?v=20261030-structured"></script>
-<script src="../../assets/js/student/resume.js?v=20261030-education-layout"></script>
+<script src="../../assets/js/student/export.js?v=20261030-aligned-skills"></script>
+<script src="../../assets/js/student/resume-work.js?v=20261030-aligned-skills"></script>
+<script src="../../assets/js/student/resume.js?v=20261030-skills10"></script>
   </body>
 </html>

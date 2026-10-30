@@ -25,12 +25,14 @@ class ResumeTests(TestCase):
     def test_multiple_experiences_keep_their_own_dates_in_storage(self):
         body=resume.Resume(workExperiences=[
             dict(text='First role', position='Intern', bullets=['Built a report'], start='2022-01', end='2022-06'),
-            dict(text='Second role', start='2023-02', end='2024-03')])
+            dict(text='Second role', company='Example Company', location='Cavite', start='2023-02', end='2024-03')])
         cursor=MagicMock()
         with patch.object(resume, 'database', lambda: database_for(cursor)):
             resume.save_resume(body, account())
         stored=json.loads(cursor.execute.call_args.args[1][1])
         self.assertEqual(stored['workExperiences'][1]['start'], '2023-02')
+        self.assertEqual(stored['workExperiences'][1]['company'], 'Example Company')
+        self.assertEqual(stored['workExperiences'][1]['location'], 'Cavite')
         self.assertEqual(stored['workExperiences'][0]['end'], '2022-06')
         self.assertEqual(stored['workExperiences'][0]['position'], 'Intern')
         self.assertEqual(stored['workExperiences'][0]['bullets'], ['Built a report'])
@@ -40,7 +42,8 @@ class ResumeTests(TestCase):
         for entry in [dict(text='Role', start='2024-03', end='2023-01'),
                       dict(text='Role', start='2024-02'), dict(text=' '),
                       dict(text='Role', start='2024-13', end='2025-01'),
-                      dict(text='Role', bullets=['']), dict(text='Role', bullets=['x'*2001])]:
+                      dict(text='Role', bullets=['']), dict(text='Role', bullets=['x'*2001]),
+                      dict(text='Role', company='x'*201), dict(text='Role', location='x'*201)]:
             with self.assertRaises(ValidationError):
                 resume.Resume(workExperiences=[entry])
 

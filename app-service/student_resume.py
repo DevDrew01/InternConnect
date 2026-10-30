@@ -22,6 +22,8 @@ class CustomSection(BaseModel):
 class WorkExperience(BaseModel):
     text: str = Field(min_length=1, max_length=10000)
     position: str = Field(default='', max_length=200)
+    company: str | None = Field(default=None, max_length=200)
+    location: str = Field(default='', max_length=200)
     bullets: list[str] = Field(default_factory=list, max_length=100)
     start: str = Field(default='', max_length=7)
     end: str = Field(default='', max_length=7)

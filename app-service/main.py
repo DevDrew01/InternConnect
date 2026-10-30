@@ -23,6 +23,7 @@ from tasks import router as tasks_router
 from reports import router as reports_router
 from notifications import router as notifications_router
 from audit import router as audit_router
+from vault_letters import router as vault_letters_router
 
 app = FastAPI(title='InternConnect App API')
 app.include_router(student_router)
@@ -36,6 +37,7 @@ app.include_router(tasks_router)
 app.include_router(reports_router)
 app.include_router(notifications_router)
 app.include_router(audit_router)
+app.include_router(vault_letters_router)
 app.add_middleware(CORSMiddleware,
     allow_origins=[x.strip() for x in os.getenv('IC_APP_ALLOWED_ORIGINS', '').split(',') if x.strip()],
     allow_origin_regex=r'^https?://(localhost|127\.0\.0\.1)(:\d+)?$',
@@ -117,7 +119,7 @@ def health():
         for table in ('audit_events', 'companies', 'partner_accounts', 'posting_sessions', 'job_postings',
                       'student_batches', 'student_accounts', 'student_sessions',
                       'coordinator_accounts', 'coordinator_batches', 'coordinator_sessions',
-                      'login_attempts', 'partner_profiles', 'student_resumes', 'internship_applications', 'official_placements', 'student_attendance', 'classwork_tasks', 'narrative_reports', 'notification_receipts'):
+                      'login_attempts', 'partner_profiles', 'student_resumes', 'internship_applications', 'official_placements', 'student_attendance', 'classwork_tasks', 'narrative_reports', 'notification_receipts', 'vault_letters'):
             cursor.execute(f'SELECT * FROM {table} LIMIT 0')
             cursor.fetchall()
     return {'status': 'ok', 'database': 'mysql'}

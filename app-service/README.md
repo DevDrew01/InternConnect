@@ -1,6 +1,6 @@
 # Shared postings API
 
-This MySQL service is separate from the AI service on port 8000. It stores accounts, batch ownership and approvals, login limits, shared postings with GPS coordinates, resumes, application snapshots, confirmed placements, attendance, classwork tasks, narrative reports, reviews and grades. Database accounts read these records across browsers. The general document vault, audits, alumni transitions and some other OJT controls still use prototype storage; see `docs/implementation-progress.md` for acceptance status and remaining work.
+This MySQL service is separate from the AI service on port 8000. It stores accounts, batch ownership and approvals, login limits, shared postings with GPS coordinates, resumes, application snapshots, confirmed placements, attendance, classwork tasks, narrative reports, reviews and grades. Database accounts read these records across browsers. Signed endorsement and acceptance letters in student folders are shared through MySQL between the owning coordinator, company and student, including before deployment. Other document-vault types, broader audit coverage, alumni transitions and some other OJT controls still use prototype storage; see `docs/implementation-progress.md` for acceptance status and remaining work.
 
 ## Setup
 

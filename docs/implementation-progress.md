@@ -308,3 +308,11 @@ Acceptance: create a real report/request/application, verify its scoped notifica
 Acceptance: submit, revise, review and grade a report; check Audit Trail in another
 browser on the owning coordinator account and refresh. Another coordinator must not
 see these entries. New accounts must show an empty feed. Export must match the feed.
+
+## Shared placement letters (2026-10-30)
+
+- Added `vault_letters` for endorsement/acceptance uploads in the company vault. One record is visible to the owning coordinator, linked partner company and named student before deployment; student identity is checked by account ID and upload targets by email, not display name.
+- Vault uploads, downloads, replacements and deletion use authenticated APIs for these two letter types. Replacements preserve prior payloads and enforce uploader ownership/version checks. Confirmed-placement letters cannot be deleted. Upload/update/delete audits share the database transaction. Other document types retain the existing prototype path.
+- Students see these shared letters in Overview > My files. Existing deployment copies remain a fallback. Deployment confirmation reads the shared files; earlier browser-only uploads have a Share letter action to transfer them without selecting the file again.
+- Nine new vault tests plus ten placement, two health and two audit tests passed (23 focused backend tests). Client checks cover a single upload appearing in the company cache, duplicate-name separation, and absence of file contents in cached metadata. Syntax and diff checks passed.
+- Run `manage.py init` for the NEW `vault_letters` table, then restart account API 8001. Initialization and the live upload/company/student workflow have NOT been verified in this slice.

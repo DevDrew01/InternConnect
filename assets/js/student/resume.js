@@ -103,8 +103,8 @@ function initStudentResume({getJSON, setJSON, session, toast, exportStudentPdf})
     });
     const skillColumns=skills=>{
       const columns=[];
-      for(let index=0;index<skills.length;index+=4){
-        columns.push('<li class="resume-skill-column"><ul>'+linesToListItems(skills.slice(index,index+4).join('\n'))+'</ul></li>');
+      for(let index=0;index<skills.length;index+=3){
+        columns.push('<li class="resume-skill-column"><ul>'+linesToListItems(skills.slice(index,index+3).join('\n'))+'</ul></li>');
       }
       return columns.join('');
     };

@@ -41,6 +41,13 @@ html.shell-ready:not(.app-ready) .portal-loading-placeholder{display:block;visib
 /* Nav Links */
 .career-dialog{width:min(680px,calc(100vw - 24px));max-height:calc(100dvh - 32px);margin:auto;overflow-y:auto;}
 .career-dialog::backdrop{background:rgba(15,23,42,.45);}
+.student-document-viewer{width:min(900px,calc(100vw - 24px));height:85dvh;max-height:calc(100dvh - 24px);padding:0;border:1px solid #e2e8f0;border-radius:8px;background:#fff;margin:auto;}
+.student-document-viewer[open]{display:flex;flex-direction:column;}
+.student-document-viewer::backdrop{background:rgba(15,23,42,.45);}
+.student-document-toolbar{display:flex;align-items:center;gap:16px;padding:12px 16px;border-bottom:1px solid #e2e8f0;font:13px Inter,system-ui,sans-serif;}
+.student-document-toolbar strong{flex:1;min-width:0;overflow-wrap:anywhere;}
+.student-document-toolbar button,.student-document-toolbar a{flex-shrink:0;color:#475569;font:inherit;cursor:pointer;}
+.student-document-content{display:block;width:100%;flex:1;min-height:0;border:0;object-fit:contain;}
 .nav-link.active{background:linear-gradient(90deg,var(--navA),rgba(255,255,255,0.02));border-left:3px solid var(--b500);color:#fff;}
 .nav-link.active i{color:var(--b400);}
 .nav-link{border-left:3px solid transparent;}
@@ -120,13 +127,19 @@ body[data-page="jobs"] #sidebar .nav-link[data-tab="jobs"] i{color:var(--b400);}
 .resume-document .resume-work-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:11pt;}
 .resume-document .resume-work-heading strong{flex:1;min-width:0;overflow-wrap:anywhere;}
 .resume-document .resume-work-dates{flex-shrink:0;white-space:nowrap;font-size:11pt;font-weight:700;}
-.resume-document .resume-work-position{font-size:10pt;font-style:italic;line-height:1.4;margin-top:2px;}
+.resume-document .resume-work-position{font-size:10pt;font-style:italic;font-weight:700;line-height:1.4;margin-top:2px;}
+.resume-document .resume-work-subheading .resume-work-position{flex:1;min-width:0;overflow-wrap:anywhere;}
+.resume-document .resume-work-location{max-width:45%;text-align:right;font-size:11pt;overflow-wrap:anywhere;}
 .resume-document .resume-work-entry ul{margin-top:4px;padding-left:32px;list-style-position:outside;}
 .resume-document ul{display:block;list-style:disc outside;padding-left:18px;margin:0;}
 .resume-document li{padding-left:2px;margin-top:3px;overflow-wrap:anywhere;}
 .resume-document p,.resume-document ul,.resume-document li{font-size:11pt;line-height:1.4;}
-.resume-document #pv-softskills,.resume-document #pv-hardskills{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:8px 16px;padding-left:0;list-style:none;}
-.resume-document .resume-skill-column{margin:0;padding:0;list-style:none;min-width:0;}
+.resume-document p,.resume-document li,.resume-document .resume-work-position{text-align:justify;}
+.resume-document #pv-softskills,.resume-document #pv-hardskills{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px 16px;padding-left:0;list-style:none;}
+.resume-document .resume-skill-column{display:grid;grid-template-rows:subgrid;grid-row:span 3;margin:0;padding:0;list-style:none;min-width:0;}
+.resume-document .resume-skill-column > ul{display:grid;grid-template-rows:subgrid;grid-row:span 3;}
+.resume-document :is(#pv-softskills,#pv-hardskills),.resume-document :is(#pv-softskills,#pv-hardskills) :is(ul,li){font-size:10pt;text-align:left;}
+.resume-document .resume-skill-column > ul > li{margin-top:0;}
 .resume-date-range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
 .resume-date-range > div{min-width:0;}
 .resume-inline-date-range{display:flex;align-items:center;gap:8px;min-width:0;}
